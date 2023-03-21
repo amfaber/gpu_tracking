@@ -1,0 +1,15 @@
+.DS_STORE
+target/
+*.so
+*.ets
+*.vsi
+*.oex
+*.pyd
+*.pyc
+*.npy
+*.tif
+*.tiff
+*.svg
+*.dump
+*.bin
+testing/
