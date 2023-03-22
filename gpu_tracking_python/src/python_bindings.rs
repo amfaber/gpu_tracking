@@ -342,7 +342,7 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
             eframe::run_native(
                 "gpu_tracking",
                 options,
-                Box::new(|cc| Box::new(gpu_tracking_app::custom3d_wgpu::AppWrapper::new(cc).unwrap())),
+                Box::new(|cc| Box::new(gpu_tracking_app::custom3d_wgpu::AppWrapper::new(cc, Vec::new()).unwrap())),
             )
         });
     }

@@ -12,4 +12,5 @@ target/
 *.svg
 *.dump
 *.bin
+*.csv
 testing/

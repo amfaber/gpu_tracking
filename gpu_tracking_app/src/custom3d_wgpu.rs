@@ -88,11 +88,43 @@ pub struct AppWrapper{
 }
 
 impl AppWrapper{
-    pub fn new<'a>(_cc: &'a eframe::CreationContext<'a>) -> Option<Self> {
-        let apps = vec![
-            Rc::new(RefCell::new(Custom3d::new()?)),
-        ];
-        let opens = vec![true];
+    pub fn new<'a>(cc: &'a eframe::CreationContext<'a>, autoload: Vec<String>) -> Option<Self> {
+        let (apps, opens) = if autoload.len() == 0{
+            let apps = vec![
+                Rc::new(RefCell::new(Custom3d::new()?)),
+            ];
+            let opens = vec![true];
+            (apps, opens)
+        } else {
+            let render_state = cc.wgpu_render_state.as_ref().unwrap();
+            let mut apps: Vec<Rc<RefCell<Custom3d>>> = Vec::new();
+            let mut opens = Vec::new();
+            for path in autoload{
+                opens.push(true);
+                let app = match apps.last(){
+                    Some(other_app) => {
+                        let new_app = Rc::new(RefCell::new(other_app.borrow().clone()));
+                        let coupling = Coupling{
+                            link: Rc::downgrade(other_app),
+                            ty: CouplingType::Controlling,
+                        };
+                        new_app.borrow_mut().other_apps.push(coupling);
+                        new_app
+                    },
+                    None => {
+                        Rc::new(RefCell::new(Custom3d::new()?))
+                    },
+                };
+                {
+                    let mut app_mut = app.borrow_mut();
+                    app_mut.input_state.path = path;
+                    ignore_result(app_mut.setup_new_path(render_state));
+                }
+                apps.push(app);
+                
+            }
+            (apps, opens)
+        };
         
         Some(Self{apps, opens, test_function: None})
     }

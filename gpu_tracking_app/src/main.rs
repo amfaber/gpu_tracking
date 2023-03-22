@@ -1,11 +1,34 @@
-// use egui;
+use std::path::PathBuf;
 use eframe;
 use gpu_tracking_app;
 use tracing_subscriber;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+struct Args{
+    paths: Vec<String>,
+    #[arg(short, long)]
+    verbosity: Option<u32>,
+
+    #[arg(short, long)]
+    test: Option<bool>,
+}
+
 fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing_subscriber::filter::LevelFilter::ERROR)
-        .with_thread_ids(true).init();
+    let Args{
+        paths,
+        verbosity,
+        test,
+    } = Args::parse();
+    let verbosity = verbosity.unwrap_or(0);
+    let test = test.unwrap_or(false);
+
+    if verbosity > 0{
+        tracing_subscriber::fmt()
+            .with_max_level(tracing_subscriber::filter::LevelFilter::ERROR)
+            .with_thread_ids(true).init();
+    }
+
     let options = eframe::NativeOptions {
         drag_and_drop_support: true,
         // maximized: true,
@@ -18,6 +41,12 @@ fn main() {
     eframe::run_native(
         "gpu_tracking",
         options,
-        Box::new(|cc| Box::new(gpu_tracking_app::custom3d_wgpu::AppWrapper::test(cc).unwrap())),
+        Box::new(move |cc| {
+            if !test{
+                Box::new(gpu_tracking_app::custom3d_wgpu::AppWrapper::new(cc, paths).unwrap())
+            } else {
+                Box::new(gpu_tracking_app::custom3d_wgpu::AppWrapper::test(cc).unwrap())
+            }
+        }),
     ).unwrap();
 }
