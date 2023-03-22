@@ -43,8 +43,8 @@ if __name__ == "__main__":
 
     idk = gt.connect(tpdf, gtdf, 1)
 
-    # for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
-    #     print(i, diff)
+    for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
+        print(i, diff)
 
     print("\n")
     print(idk["y_x"].isna().sum(), idk["y_y"].isna().sum())
