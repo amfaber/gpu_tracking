@@ -2052,7 +2052,7 @@ impl Custom3d {
     unsafe fn get_owner(&self, owner: &Option<Coupling>) -> Option<&Self>{
         match owner{
             Some(inner) => {
-                let owner = unsafe { inner.link.upgrade().and_then(|inner| (inner.try_borrow().ok().map(|double_inner| (&*(&*double_inner as *const Custom3d))))) };
+                let owner = Some(&*(&*inner.link.upgrade()?.try_borrow().ok()? as *const Custom3d));
                 owner
             },
             None => Some(self),

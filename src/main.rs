@@ -44,10 +44,10 @@ struct Args {
 
 
 fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
-    let atomic = Arc::new(AtomicBool::new(false));
-    let interrupted = atomic.clone();
-    ctrlc::set_handler(move || interrupted.store(true, Ordering::Relaxed))
-        .expect("Couldn't set ctrl-c handler");
+    // let atomic = Arc::new(AtomicBool::new(false));
+    // let interrupted = atomic.clone();
+    // ctrlc::set_handler(move || interrupted.store(true, Ordering::Relaxed))
+    //     .expect("Couldn't set ctrl-c handler");
     let args: Args = Args::parse();
     let now_top = Instant::now();
     // let path = args.input.unwrap_or("testing/frank_freeze/frame_t_0.ets".to_string());
@@ -56,7 +56,7 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
     // let path = args.input.unwrap_or(r"C:\Users\andre\Documents\tracking_optimizations\gpu-tracking\tiff_vsi\vsi dummy\_Process_9747_\stack1\frame_t_0.ets".to_string());
     // let path = args.input.unwrap_or(r"C:\Users\andre\Documents\tracking_optimizations\gpu-tracking\tiff_vsi\vsi dummy\Process_9747.vsi".to_string());
     
-    let path = args.input.unwrap_or("testing/easy_test_data.tif".to_string());
+    let path = args.input.unwrap_or("../gpu_tracking_testing/easy_test_data.tif".to_string());
     let debug = args.debug.unwrap_or(false);
     let filter = args.filter.unwrap_or(true);
     let characterize = args.characterize.unwrap_or(false);
@@ -118,7 +118,7 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
     let array = Array::from_shape_vec([array.len() / (dims[0] * dims[1]) as usize, dims[0] as usize, dims[1] as usize], array).unwrap();
 
     let now = Instant::now();
-    let (results, column_names) = if false{
+    let (results, column_names) = if true{
         execute_gpu::execute_file(
             &path,
             None,
@@ -131,7 +131,7 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
             None,
         )?
     } else {
-        let mut future = ProgressFuture::from_interrupt_signal(atomic, |job, progress, interruption|{
+        let mut future = ProgressFuture::new(|job, progress, interruption|{
             let (array, params, channel): (Array3<f32>, _, Option<usize>)= job;
             execute_gpu::execute_ndarray(
                 &array.view(),

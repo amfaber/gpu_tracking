@@ -1,0 +1,29 @@
+[package]
+name = "gauss_fitting"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+argmin = "0.8.1"
+argmin-math = { version = "0.3.0", features = ["nalgebra_latest-serde"] }
+argmin_testfunctions = "0.1.1"
+bytemuck = { version = "1.13.1", features = ["derive"] }
+nalgebra = { version = "0.32.2", features = ["rand"] }
+ndarray = { version = "0.15.6", features = ["rayon"] }
+num-traits = "0.2.15"
+profiling = { version = "1.0.7", features = ["profile-with-tracing"] }
+puffin = "0.14.3"
+rayon = "1.7.0"
+serde = { version = "1.0.155", features = ["derive"] }
+
+[lib]
+name = "gauss_fitting"
+
+[[bin]]
+name = "gauss_fitting_bin"
+path = "src/main.rs"
+
+# [profile.release]
+# debug = true

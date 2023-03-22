@@ -101,6 +101,7 @@ impl Default for TrackingParams{
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct GpuParams{
     pub pic_dims: [u32; 2],
     pub composite_dims: [u32; 2],
