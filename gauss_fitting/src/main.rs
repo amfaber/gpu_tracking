@@ -10,6 +10,4 @@ fn main() {
 
     gauss_fitting::gauss::test();
     // gauss_fitting::gauss::lbfgs_test();
-
-    
 }

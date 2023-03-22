@@ -4,29 +4,27 @@
 use futures;
 use futures_intrusive;
 // use gpu_tracking::execute_gpu::{path_to_iter, ProgressFuture, PollResult};
-use gpu_tracking::gpu_setup::{ParamStyle, setup_state};
+use gpu_tracking::gpu_setup::{new_adapter, new_device_queue, setup_state, ParamStyle};
 use gpu_tracking::linking::FrameSubsetter;
-use gpu_tracking::progressfuture::{ProgressFuture, PollResult};
+use gpu_tracking::progressfuture::{PollResult, ProgressFuture};
 use gpu_tracking::{
-    decoderiter::{IterDecoder, FrameProvider},
-    execute_gpu::{
-        self, execute_gpu, execute_ndarray, path_to_iter,
-    },
+    decoderiter::{FrameProvider, IterDecoder},
+    execute_gpu::{self, execute_gpu, execute_ndarray, path_to_iter},
     gpu_setup::TrackingParams,
 };
-use ndarray::{s, Array2, Axis, Array, Array3};
+use ndarray::{s, Array, Array2, Array3, Axis};
 use pollster::FutureExt;
 use std::cell::RefCell;
 use std::io::Write;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::{fs, time::Instant};
 use tiff::decoder::{Decoder, DecodingResult};
 pub type my_dtype = f32;
 use clap::Parser;
-use std::path;
 use ctrlc;
 use indicatif;
+use std::path;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -42,8 +40,7 @@ struct Args {
     // processed_cpu: Option<bool>,
 }
 
-
-fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
+fn test_trackpy_easy() -> gpu_tracking::error::Result<()> {
     // let atomic = Arc::new(AtomicBool::new(false));
     // let interrupted = atomic.clone();
     // ctrlc::set_handler(move || interrupted.store(true, Ordering::Relaxed))
@@ -55,8 +52,12 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
     // let path = args.input.unwrap_or(r"C:\Users\andre\Documents\tracking_optimizations\gpu-tracking\testing\kdtree_panic\emily_she_kdtree_panic.tif".to_string());
     // let path = args.input.unwrap_or(r"C:\Users\andre\Documents\tracking_optimizations\gpu-tracking\tiff_vsi\vsi dummy\_Process_9747_\stack1\frame_t_0.ets".to_string());
     // let path = args.input.unwrap_or(r"C:\Users\andre\Documents\tracking_optimizations\gpu-tracking\tiff_vsi\vsi dummy\Process_9747.vsi".to_string());
-    
-    let path = args.input.unwrap_or("../gpu_tracking_testing/easy_test_data.tif".to_string());
+
+    let device_queue = new_device_queue(&new_adapter());
+
+    let path = args
+        .input
+        .unwrap_or("../gpu_tracking_testing/easy_test_data.tif".to_string());
     let debug = args.debug.unwrap_or(false);
     let filter = args.filter.unwrap_or(true);
     let characterize = args.characterize.unwrap_or(false);
@@ -92,7 +93,7 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
         // illumination_sigma: Some(30.),
         search_range: Some(10.),
         doughnut_correction: true,
-        
+
         // include_r_in_output: true,
         // truncate_preprocessed: true,
         // keys: Some(vec![0, 1, 2, 3, 4, 5]),
@@ -100,25 +101,36 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
     };
     let now = Instant::now();
     let points = vec![
-        0f32, 300f32, 300f32, 5f32,
-        0f32, 200f32, 200f32, 5f32,
+        0f32, 300f32, 300f32, 5f32, 0f32, 200f32, 200f32,
+        5f32,
         // 2000f32, 200f32, 200f32,
         // 10000f32, 200f32, 200f32,
         // 200f32, 300f32, 300f32,
         // 1999f32, 200f32, 200f32,
     ];
     let width = 4;
-    let points = Array2::from_shape_vec((points.len()/4, 4), points).unwrap();
+    let points = Array2::from_shape_vec((points.len() / 4, 4), points).unwrap();
     // let point_view = points.view();
     // let point_iter = FrameSubsetter::new(&point_view, Some(0), (1, 2));
     // let tmp = points.view();
     // let inp = Some(FrameSubsetter::new(tmp, Some(0), (1, 2), Some(3), gpu_tracking::linking::SubsetterType::Characterization::Characterization));
     let (provider, dims) = path_to_iter(&path, None)?;
-    let array = provider.into_iter().flat_map(|frame| frame.unwrap().into_iter()).collect::<Vec<_>>();
-    let array = Array::from_shape_vec([array.len() / (dims[0] * dims[1]) as usize, dims[0] as usize, dims[1] as usize], array).unwrap();
+    let array = provider
+        .into_iter()
+        .flat_map(|frame| frame.unwrap().into_iter())
+        .collect::<Vec<_>>();
+    let array = Array::from_shape_vec(
+        [
+            array.len() / (dims[0] * dims[1]) as usize,
+            dims[0] as usize,
+            dims[1] as usize,
+        ],
+        array,
+    )
+    .unwrap();
 
     let now = Instant::now();
-    let (results, column_names) = if true{
+    let (results, column_names) = if true {
         execute_gpu::execute_file(
             &path,
             None,
@@ -129,10 +141,11 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
             None::<_>,
             None,
             None,
+            &device_queue,
         )?
     } else {
-        let mut future = ProgressFuture::new(|job, progress, interruption|{
-            let (array, params, channel): (Array3<f32>, _, Option<usize>)= job;
+        let mut future = ProgressFuture::new(move |job, progress, interruption| {
+            let (array, params, channel): (Array3<f32>, _, Option<usize>) = job;
             execute_gpu::execute_ndarray(
                 &array.view(),
                 params,
@@ -140,14 +153,16 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
                 None::<_>,
                 Some(interruption),
                 Some(progress),
+                &device_queue,
             )
         });
 
         future.submit_same((array, params, None));
 
-    let bar = indicatif::ProgressBar::with_draw_target(None, indicatif::ProgressDrawTarget::stderr());
-        let idk = loop{
-            match future.poll().unwrap(){
+        let bar =
+            indicatif::ProgressBar::with_draw_target(None, indicatif::ProgressDrawTarget::stderr());
+        let idk = loop {
+            match future.poll().unwrap() {
                 PollResult::Done(res) => break res,
                 PollResult::Pending(prog) => {
                     bar.set_position(prog.0 as u64);
@@ -158,8 +173,8 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
                     //         _ => panic!("oof2")
                     //     }
                     // }
-                },
-                _ => panic!("Oof")
+                }
+                _ => panic!("Oof"),
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }?;
@@ -171,9 +186,6 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
         idk
     };
 
-
-
-    
     let function_time = now.elapsed().as_millis() as f64 / 1000.;
     dbg!(function_time);
     dbg!(&results.shape());
@@ -183,15 +195,19 @@ fn test_trackpy_easy() -> gpu_tracking::error::Result<()>{
     Ok(())
 }
 
-fn main(){
+fn main() {
     dbg!(test_trackpy_easy().unwrap());
 }
 
-
-fn test_unedited() -> gpu_tracking::error::Result<()>{
+fn test_unedited() -> gpu_tracking::error::Result<()> {
     let args: Args = Args::parse();
     let now_top = Instant::now();
-    let path = args.input.unwrap_or("testing/easy_test_data.tif".to_string());
+
+    let adapter = new_adapter();
+
+    let path = args
+        .input
+        .unwrap_or("testing/easy_test_data.tif".to_string());
     // let path = args
     //     .input
     //     .unwrap_or("testing/scuffed_blobs_1C_even_dims.tif".to_string());
@@ -246,14 +262,11 @@ fn test_unedited() -> gpu_tracking::error::Result<()>{
     // dbg!(function_time);
     let now = Instant::now();
     let points = vec![
-        0f32, 300f32, 300f32,
-        0f32, 200f32, 200f32,
-        200f32, 300f32, 300f32,
-        1999f32, 200f32, 200f32,
+        0f32, 300f32, 300f32, 0f32, 200f32, 200f32, 200f32, 300f32, 300f32, 1999f32, 200f32, 200f32,
     ];
     let points = Array2::from_shape_vec((4, 3), points).unwrap();
     let point_view = points.view();
-    let state = setup_state(&params, &dims, false)?;
+    let state = setup_state(&params, &dims, false, &new_device_queue(&new_adapter()))?;
     // let point_iter = FrameSubsetter::new(&point_view, Some(0), (1, 2));
     // let (results, column_names) = execute_gpu::execute_gpu(
     //     decoderiter,
@@ -284,4 +297,3 @@ fn test_unedited() -> gpu_tracking::error::Result<()>{
     // dbg!(total);
     Ok(())
 }
-

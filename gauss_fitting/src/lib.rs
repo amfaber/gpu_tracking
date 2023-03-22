@@ -1,2 +1,2 @@
-pub mod rosen_testing;
 pub mod gauss;
+pub mod rosen_testing;

@@ -1,0 +1,50 @@
+use clap::Parser;
+use eframe;
+use tracing_subscriber;
+
+#[derive(Parser, Debug)]
+struct Args {
+    paths: Vec<String>,
+    #[arg(short, long)]
+    verbosity: Option<u32>,
+
+    #[arg(short, long)]
+    test: Option<bool>,
+}
+
+pub fn run() {
+    let Args {
+        paths,
+        verbosity,
+        test,
+    } = Args::parse();
+    let verbosity = verbosity.unwrap_or(0);
+    let test = test.unwrap_or(false);
+
+    if verbosity > 0 {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing_subscriber::filter::LevelFilter::ERROR)
+            .with_thread_ids(true)
+            .init();
+    }
+
+    let options = eframe::NativeOptions {
+        drag_and_drop_support: true,
+        initial_window_size: Some([1200., 800.].into()),
+        renderer: eframe::Renderer::Wgpu,
+
+        ..Default::default()
+    };
+    eframe::run_native(
+        "gpu_tracking",
+        options,
+        Box::new(move |cc| {
+            if !test {
+                Box::new(crate::custom3d_wgpu::AppWrapper::new(cc, paths).unwrap())
+            } else {
+                Box::new(crate::custom3d_wgpu::AppWrapper::test(cc).unwrap())
+            }
+        }),
+    )
+    .unwrap();
+}

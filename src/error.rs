@@ -4,95 +4,90 @@ use thiserror;
 use wgpu;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error{
-	#[error("could not get gpu adapter")]
-	GpuAdapterError,
-	
-	#[error("could not get gpu device")]
-	GpuDeviceError(#[from] wgpu::RequestDeviceError),
-	
-	#[error("could not find file '{filename}'")]
-	FileNotFound{
-		source: std::io::Error,
-		filename: std::path::PathBuf,
-	},
+pub enum Error {
+    #[error("could not get gpu adapter")]
+    GpuAdapterError,
 
-	#[error("dimension mismatch. provided dimensions are ({}, {}), but frame {} contains {} pixels", .dimensions[0], .dimensions[1], idx, frame_len)]
-	DimensionMismatch{
-		idx: usize,
-		frame_len: usize,
-		dimensions: [u32; 2],
-	},
+    #[error("could not get gpu device")]
+    GpuDeviceError(#[from] wgpu::RequestDeviceError),
 
-	#[error("the provided video doesn't contain any frames.")]
-	EmptyIterator,
+    #[error("could not find file '{filename}'")]
+    FileNotFound {
+        source: std::io::Error,
+        filename: std::path::PathBuf,
+    },
 
-	#[error("the points provided for characterization aren't sorted in ascending frame number.")]
-	NonSortedCharacterization,
+    #[error("dimension mismatch. provided dimensions are ({}, {}), but frame {} contains {} pixels", .dimensions[0], .dimensions[1], idx, frame_len)]
+    DimensionMismatch {
+        idx: usize,
+        frame_len: usize,
+        dimensions: [u32; 2],
+    },
 
-	#[error("Requested a frame outside the length
- of the video. Video length is {}, requested frame {}", vid_len, problem_idx)]
-	// #[error("Requested characterization for a frame outside the length
- // of the video. Video length is {}, requested characterization in frame {}", vid_len, problem_idx)]
-	FrameOutOfBounds{
-		vid_len: usize,
-		problem_idx: usize,
-	},
+    #[error("the provided video doesn't contain any frames.")]
+    EmptyIterator,
 
-	#[error("Internal frame out of bounds error")]
-	FrameOOB,
+    #[error("the points provided for characterization aren't sorted in ascending frame number.")]
+    NonSortedCharacterization,
 
-	
-	#[error("unexpected threading error. this will require some more debugging.")]
-	ThreadError,
-	
-	#[error("the passed array is not in standard memory layout. perhaps it is a view of a larger array?")]
-	NonStandardArrayLayout,
+    #[error(
+        "Requested a frame outside the length
+ of the video. Video length is {}, requested frame {}",
+        vid_len,
+        problem_idx
+    )]
+    // #[error("Requested characterization for a frame outside the length
+    // of the video. Video length is {}, requested characterization in frame {}", vid_len, problem_idx)]
+    FrameOutOfBounds { vid_len: usize, problem_idx: usize },
 
-	
-	#[error("could not determine extension of file '{filename}'")]
-	NoExtensionError{
-		filename: std::path::PathBuf,
-	},
+    #[error("Internal frame out of bounds error")]
+    FrameOOB,
 
-	#[error("unsupported file format: {extension}")]
-	UnsupportedFileformat{
-		extension: String,
-	},
+    #[error("unexpected threading error. this will require some more debugging.")]
+    ThreadError,
 
-	#[error("unsupported characterize array dimensions.
-accepted dimensions: (Nx2) or (Nx3). received: {:?}", dims)]
-	ArrayDimensionsError{
-		dims: Vec<usize>,
-	},
+    #[error("the passed array is not in standard memory layout. perhaps it is a view of a larger array?")]
+    NonStandardArrayLayout,
 
-	#[error("error in casting image datatype")]
-	CastError,
+    #[error("could not determine extension of file '{filename}'")]
+    NoExtensionError { filename: std::path::PathBuf },
 
-	#[error("error in seeking to the requested image in file")]
-	ReadError,
+    #[error("unsupported file format: {extension}")]
+    UnsupportedFileformat { extension: String },
 
-	#[error("filename is not valid utf-8")]
-	InvalidFileName{
-		filename: PathBuf,
-	},
+    #[error(
+        "unsupported characterize array dimensions.
+accepted dimensions: (Nx2) or (Nx3). received: {:?}",
+        dims
+    )]
+    ArrayDimensionsError { dims: Vec<usize> },
 
-	#[error("the requested channel wasn't found in the file")]
-	ChannelNotFound,
+    #[error("error in casting image datatype")]
+    CastError,
 
-	#[error("computational load during linking is abnormally high. try setting a smaller
- search range or track with settings that give fewer detections.")]
-	TooDenseToLink,
+    #[error("error in seeking to the requested image in file")]
+    ReadError,
 
-	#[error("Keyboard Interrupt, my custom version")]
-	Interrupted,
+    #[error("filename is not valid utf-8")]
+    InvalidFileName { filename: PathBuf },
 
-	#[error("Future polled after termination")]
-	PolledAfterTermination,
+    #[error("the requested channel wasn't found in the file")]
+    ChannelNotFound,
 
-	#[error("Tiff write error")]
-	TiffWrite,
+    #[error(
+        "computational load during linking is abnormally high. try setting a smaller
+ search range or track with settings that give fewer detections."
+    )]
+    TooDenseToLink,
+
+    #[error("Keyboard Interrupt, my custom version")]
+    Interrupted,
+
+    #[error("Future polled after termination")]
+    PolledAfterTermination,
+
+    #[error("Tiff write error")]
+    TiffWrite,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-

@@ -15,7 +15,7 @@ def time_func(to_time, n = 5, **kwargs):
         times.append(time.perf_counter() - start)
     times = np.array(times)
     df.to_csv(f"{to_time.__name__}.csv")
-    if "key" in kwargs:
+    if "key" in kwargs and kwargs["key"] is not None:
         n = len(kwargs["key"])
     else:
         n = 5000
@@ -37,14 +37,16 @@ def gpu_tracking(key = None):
 
 
 if __name__ == "__main__":
-    n = 100
-    tpdf, _ = time_func(trackpy, 1, key = range(n))
-    gtdf, _ = time_func(gpu_tracking, 1, key = range(n))
+    # n = range(100)
+    repeats = 5
+    n = None
+    tpdf, _ = time_func(trackpy, 5, key = n)
+    gtdf, _ = time_func(gpu_tracking, 5, key = n)
 
     idk = gt.connect(tpdf, gtdf, 1)
 
-    for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
-        print(i, diff)
+    # for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
+    #     print(i, diff)
 
-    print("\n")
+    # print("\n")
     print(idk["y_x"].isna().sum(), idk["y_y"].isna().sum())

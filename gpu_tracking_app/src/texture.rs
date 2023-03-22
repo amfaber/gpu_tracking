@@ -1,15 +1,14 @@
-use std::{num::NonZeroU32, mem};
+use std::{mem, num::NonZeroU32};
 
+use anyhow::*;
 use eframe::egui_wgpu::RenderState;
 use eframe::wgpu;
 use ndarray::ArrayView2;
-use anyhow::*;
 // use crate::colormaps::MAPS;
 use wgpu::util::DeviceExt;
 
 use crate::texture;
 // use bytemuck::Pod;
-
 
 pub struct Texture {
     pub texture: eframe::wgpu::Texture,
@@ -75,7 +74,7 @@ impl Texture {
             ..Default::default()
         });
 
-        let cmap = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+        let cmap = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             contents: bytemuck::cast_slice(&cmap),
@@ -111,8 +110,8 @@ impl Texture {
         // });
 
         // let cpu_minmax = [img_min, img_max];
-        
-        let minmax = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+
+        let minmax = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             contents: bytemuck::cast_slice(cpu_minmax),
@@ -123,11 +122,10 @@ impl Texture {
             view,
             sampler,
             cmap,
-            minmax
+            minmax,
         })
     }
 }
-
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -157,8 +155,7 @@ impl Vertex {
     }
 }
 
-
-fn gen_vertices(bounding: &egui::Rect) -> [Vertex; 4]{
+fn gen_vertices(bounding: &egui::Rect) -> [Vertex; 4] {
     [
         Vertex {
             position: [-1., 1., 0.0],
@@ -190,14 +187,19 @@ pub struct ColormapRenderResources {
     #[allow(dead_code)]
     diffuse_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
-	// frame_provider: (Box<dyn gpu_tracking::decoderiter::FrameProvider<
-	// 	Frame = Vec<f32>,
-	// 	FrameIter = Box<dyn Iterator<Item = Result<Vec<f32>, Error>>>
-	// >>, [u32; 2])
+    // frame_provider: (Box<dyn gpu_tracking::decoderiter::FrameProvider<
+    // 	Frame = Vec<f32>,
+    // 	FrameIter = Box<dyn Iterator<Item = Result<Vec<f32>, Error>>>
+    // >>, [u32; 2])
 }
 
 impl ColormapRenderResources {
-    pub fn new(wgpu_render_state: &RenderState, frame_view: &ArrayView2<f32>, cmap: [f32; 120], minmax: &[f32; 2]) -> Self {
+    pub fn new(
+        wgpu_render_state: &RenderState,
+        frame_view: &ArrayView2<f32>,
+        cmap: [f32; 120],
+        minmax: &[f32; 2],
+    ) -> Self {
         // let diffuse_bytes = include_bytes!("happy-tree.png");
         // let frame = provider.get_frame(0).unwrap();
         // let frame = Array::from_shape_vec([dims[0] as usize, dims[1] as usize], frame).unwrap();
@@ -206,7 +208,7 @@ impl ColormapRenderResources {
         // let wgpu_render_state = cc.wgpu_render_state.as_ref()?;
         let device = wgpu_render_state.device.clone();
         let queue = wgpu_render_state.queue.clone();
-        
+
         let diffuse_texture =
             texture::Texture::from_image(&device, &queue, frame_view, None, cmap, minmax).unwrap();
 
@@ -266,21 +268,19 @@ impl ColormapRenderResources {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(
-                        wgpu::BufferBinding{
-                            buffer: &diffuse_texture.cmap,
-                            offset: 0,
-                            size: None,
-                        }),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &diffuse_texture.cmap,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::Buffer(
-                        wgpu::BufferBinding{
-                            buffer: &diffuse_texture.minmax,
-                            offset: 0,
-                            size: None,
-                        }),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &diffuse_texture.minmax,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
             ],
             label: Some("diffuse_bind_group"),
@@ -300,7 +300,6 @@ impl ColormapRenderResources {
                 push_constant_ranges: &[],
             });
 
-        
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -347,7 +346,10 @@ impl ColormapRenderResources {
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&gen_vertices(&egui::Rect::from_x_y_ranges(0.0..=1.0, 0.0..=1.0))),
+            contents: bytemuck::cast_slice(&gen_vertices(&egui::Rect::from_x_y_ranges(
+                0.0..=1.0,
+                0.0..=1.0,
+            ))),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -367,96 +369,87 @@ impl ColormapRenderResources {
         }
     }
 
-    pub fn set_cmap(&mut self, queue: &wgpu::Queue, cmap: &[f32; 120]){
+    pub fn set_cmap(&mut self, queue: &wgpu::Queue, cmap: &[f32; 120]) {
         queue.write_buffer(&self.diffuse_texture.cmap, 0, bytemuck::cast_slice(cmap))
     }
 
-	pub fn paint<'rp>(&'rp self, render_pass: &mut wgpu::RenderPass<'rp>){
+    pub fn paint<'rp>(&'rp self, render_pass: &mut wgpu::RenderPass<'rp>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-	}
-
-    pub fn resize(&mut self, queue: &wgpu::Queue, bounding: &egui::Rect){
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&gen_vertices(bounding)))
     }
 
-    pub fn get_min(frame: &ArrayView2<f32>) -> f32{
-        frame.iter().fold(f32::INFINITY, |acc, ele| {
-            match acc.partial_cmp(ele){
-                Some(std::cmp::Ordering::Less) => {
-                    acc
-                },
-                Some(std::cmp::Ordering::Equal) => {
-                    acc
-                },
-                Some(std::cmp::Ordering::Greater) => {
-                    *ele
-                },
-                None => acc
-            }
-        })
-    }
-    
-    pub fn get_max(frame: &ArrayView2<f32>) -> f32{
-        frame.iter().fold(f32::NEG_INFINITY, |acc, ele| {
-            match acc.partial_cmp(ele){
-                Some(std::cmp::Ordering::Less) => {
-                    *ele
-                },
-                Some(std::cmp::Ordering::Equal) => {
-                    acc
-                },
-                Some(std::cmp::Ordering::Greater) => {
-                    acc
-                },
-                None => acc
-            }
-        })
+    pub fn resize(&mut self, queue: &wgpu::Queue, bounding: &egui::Rect) {
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&gen_vertices(bounding)),
+        )
     }
 
-    pub fn get_minmax(frame: &ArrayView2<f32>) -> [f32; 2]{
-        frame.iter().fold([f32::INFINITY, f32::NEG_INFINITY], |acc, ele| {
-            let min = match acc[0].partial_cmp(ele){
-                Some(std::cmp::Ordering::Less) => {
-                    acc[0]
-                },
-                Some(std::cmp::Ordering::Equal) => {
-                    acc[0]
-                },
-                Some(std::cmp::Ordering::Greater) => {
-                    *ele
-                },
-                None => acc[0]
-            };
-            let max = match acc[1].partial_cmp(ele){
-                Some(std::cmp::Ordering::Less) => {
-                    *ele
-                },
-                Some(std::cmp::Ordering::Equal) => {
-                    acc[1]
-                },
-                Some(std::cmp::Ordering::Greater) => {
-                    acc[1]
-                },
-                None => acc[1]
-            };
-            [min, max]
-        })
+    pub fn get_min(frame: &ArrayView2<f32>) -> f32 {
+        frame
+            .iter()
+            .fold(f32::INFINITY, |acc, ele| match acc.partial_cmp(ele) {
+                Some(std::cmp::Ordering::Less) => acc,
+                Some(std::cmp::Ordering::Equal) => acc,
+                Some(std::cmp::Ordering::Greater) => *ele,
+                None => acc,
+            })
     }
-    
-	pub fn update_texture(&mut self, queue: &wgpu::Queue, frame: &ArrayView2<f32>, minmax: &[f32; 2]){
-		let dimensions = frame.shape();
-		
+
+    pub fn get_max(frame: &ArrayView2<f32>) -> f32 {
+        frame
+            .iter()
+            .fold(f32::NEG_INFINITY, |acc, ele| match acc.partial_cmp(ele) {
+                Some(std::cmp::Ordering::Less) => *ele,
+                Some(std::cmp::Ordering::Equal) => acc,
+                Some(std::cmp::Ordering::Greater) => acc,
+                None => acc,
+            })
+    }
+
+    pub fn get_minmax(frame: &ArrayView2<f32>) -> [f32; 2] {
+        frame
+            .iter()
+            .fold([f32::INFINITY, f32::NEG_INFINITY], |acc, ele| {
+                let min = match acc[0].partial_cmp(ele) {
+                    Some(std::cmp::Ordering::Less) => acc[0],
+                    Some(std::cmp::Ordering::Equal) => acc[0],
+                    Some(std::cmp::Ordering::Greater) => *ele,
+                    None => acc[0],
+                };
+                let max = match acc[1].partial_cmp(ele) {
+                    Some(std::cmp::Ordering::Less) => *ele,
+                    Some(std::cmp::Ordering::Equal) => acc[1],
+                    Some(std::cmp::Ordering::Greater) => acc[1],
+                    None => acc[1],
+                };
+                [min, max]
+            })
+    }
+
+    pub fn update_texture(
+        &mut self,
+        queue: &wgpu::Queue,
+        frame: &ArrayView2<f32>,
+        minmax: &[f32; 2],
+    ) {
+        let dimensions = frame.shape();
+
         let size = wgpu::Extent3d {
             width: dimensions[1] as u32,
             height: dimensions[0] as u32,
             depth_or_array_layers: 1,
         };
-		queue.write_buffer(&self.diffuse_texture.minmax, 0, bytemuck::cast_slice(minmax));
-		
+        queue.write_buffer(
+            &self.diffuse_texture.minmax,
+            0,
+            bytemuck::cast_slice(minmax),
+        );
+
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
@@ -472,6 +465,5 @@ impl ColormapRenderResources {
             },
             size,
         );
-
-	}
+    }
 }
