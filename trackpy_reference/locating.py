@@ -34,7 +34,6 @@ def time_func(to_time, n = 5, **kwargs):
     print(len(df) / n)
     with open(f"time.txt", "a") as file:
         file.write(format_row(times, to_time.__name__))
-        # file.write(f"{to_time.__name__}: {times.mean()} ± {times.std() / np.sqrt(len(times))}")
     return df, times
     
 
@@ -46,7 +45,7 @@ def trackpy(key = None):
     return tracked
 
 def gpu_tracking(key = None):
-    return gt.batch("../../gpu_tracking_testing/easy_test_data.tif", 9, characterize = True, minmass = MINMASS, search_range = 10, keys = key)
+    return gt.batch("../../gpu_tracking_testing/easy_test_data.tif", 9, characterize = True, minmass = MINMASS, search_range = 10, keys = key, tqdm = False)
 
 
 if __name__ == "__main__":
@@ -54,12 +53,3 @@ if __name__ == "__main__":
     n = None
     tpdf, _ = time_func(trackpy, 5, key = n)
     gtdf, _ = time_func(gpu_tracking, 5, key = n)
-
-    idk = gt.connect(tpdf, gtdf, 1)
-
-    # for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
-    #     print(i, diff)
-    idk[idk.isna().any(axis = 1)].to_csv("connect_fails.csv")
-
-    print("\n")
-    print(idk["y_x"].isna().sum(), idk["y_y"].isna().sum())
