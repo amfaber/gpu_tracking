@@ -1,0 +1,2 @@
+Windows, AMD Ryzen 5 1600 Six-Core Processor, NVIDIA GeForce GTX 980, trackpy: 65.80361682 ± 0.632375247152094
+Windows, AMD Ryzen 5 1600 Six-Core Processor, NVIDIA GeForce GTX 980, gpu_tracking: 6.019302259999999 ± 0.024665535532072604
