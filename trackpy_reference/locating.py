@@ -10,7 +10,11 @@ import cpuinfo
 def format_row(times, func_name):
     mean = np.mean(times)
     std = np.std(times) / len(times)
-    f"{platform.system()}, {cpuinfo.get_cpu_info()['brand_raw']}, {GPUtil.getGPUs()[0].name}, {func_name}: {mean} ± {std}"
+    try:
+        gpu = GPUtil.getGPUs()[0].name
+    except IndexError:
+        gpu = "No GPU found"
+    return f"{platform.system()}, {cpuinfo.get_cpu_info()['brand_raw']}, {gpu}, {func_name}: {mean} ± {std}\n"
 
 MINMASS = 700
 
@@ -28,8 +32,8 @@ def time_func(to_time, n = 5, **kwargs):
     else:
         n = 5000
     print(len(df) / n)
-    with open(f"{to_time.__name__}_time.txt", "a") as file:
-        file.write(times, to_time.__name__)
+    with open(f"time.txt", "a") as file:
+        file.write(format_row(times, to_time.__name__))
         # file.write(f"{to_time.__name__}: {times.mean()} ± {times.std() / np.sqrt(len(times))}")
     return df, times
     
@@ -46,7 +50,6 @@ def gpu_tracking(key = None):
 
 
 if __name__ == "__main__":
-    # n = range(100)
     repeats = 5
     n = None
     tpdf, _ = time_func(trackpy, 5, key = n)
@@ -56,6 +59,7 @@ if __name__ == "__main__":
 
     # for i, diff in enumerate(gtdf.groupby("frame")["y"].count() - tpdf.groupby("frame")["y"].count()):
     #     print(i, diff)
+    idk[idk.isna().any(axis = 1)].to_csv("connect_fails.csv")
 
-    # print("\n")
+    print("\n")
     print(idk["y_x"].isna().sum(), idk["y_y"].isna().sum())
