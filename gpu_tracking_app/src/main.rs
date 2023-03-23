@@ -1,3 +1,3 @@
 fn main() {
-    gpu_tracking_app::run::run();
+    gpu_tracking_app::run::run_all();
 }

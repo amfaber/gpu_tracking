@@ -240,7 +240,7 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "tracking_app")]
     fn app<'py>(_py: Python<'py>) {
-        gpu_tracking_app::run::run();
+        gpu_tracking_app::run::run_ignore();
     }
 
     #[pyfn(m)]

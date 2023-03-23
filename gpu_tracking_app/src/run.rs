@@ -12,14 +12,51 @@ struct Args {
     test: Option<bool>,
 }
 
-pub fn run() {
+#[derive(Parser, Debug)]
+struct IgnoreFirstArgs {
+	exename: String,
+	
+    paths: Vec<String>,
+    #[arg(short, long)]
+    verbosity: Option<u32>,
+
+    #[arg(short, long)]
+    test: Option<bool>,
+}
+
+impl Into<Args> for IgnoreFirstArgs{
+    fn into(self) -> Args {
+        let Self{
+			paths,
+			verbosity,
+			test,
+			..
+		} = self;
+		Args{
+			paths,
+			verbosity,
+			test,
+		}
+    }
+}
+
+pub fn run_ignore(){
+	run(IgnoreFirstArgs::parse().into())
+}
+
+pub fn run_all(){
+	run(Args::parse())
+}
+
+fn run(args: Args) {
     let Args {
         paths,
         verbosity,
         test,
-    } = Args::parse();
+    } = args;
     let verbosity = verbosity.unwrap_or(0);
     let test = test.unwrap_or(false);
+	
 
     if verbosity > 0 {
         tracing_subscriber::fmt()
