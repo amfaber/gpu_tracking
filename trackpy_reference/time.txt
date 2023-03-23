@@ -1,0 +1,2 @@
+Darwin, Apple M1, No GPU found, trackpy: 94.40051541698631 ± 0.21222596811098343
+Darwin, Apple M1, No GPU found, gpu_tracking: 6.555090041598305 ± 0.09328682619449187
