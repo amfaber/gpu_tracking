@@ -4,6 +4,14 @@ import time
 import gpu_tracking as gt
 import numpy as np
 
+import GPUtil
+import platform
+import cpuinfo
+def format_row(times, func_name):
+    mean = np.mean(times)
+    std = np.std(times) / len(times)
+    f"{platform.system()}, {cpuinfo.get_cpu_info()['brand_raw']}, {GPUtil.getGPUs()[0].name}, {func_name}: {mean} ± {std}"
+
 MINMASS = 700
 
 def time_func(to_time, n = 5, **kwargs):
@@ -20,8 +28,9 @@ def time_func(to_time, n = 5, **kwargs):
     else:
         n = 5000
     print(len(df) / n)
-    with open(f"{to_time.__name__}_time.txt", "w") as file:
-        file.write(f"{to_time.__name__}: {times.mean()} ± {times.std() / np.sqrt(len(times))}")
+    with open(f"{to_time.__name__}_time.txt", "a") as file:
+        file.write(times, to_time.__name__)
+        # file.write(f"{to_time.__name__}: {times.mean()} ± {times.std() / np.sqrt(len(times))}")
     return df, times
     
 
