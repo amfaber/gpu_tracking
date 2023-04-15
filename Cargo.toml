@@ -1,5 +1,5 @@
 [workspace]
-members = ["gpu_tracking_app", "gpu_tracking_python", "gpu_tracking_macros", "gauss_fitting"]
+members = ["gpu_tracking_app", "gpu_tracking_python", "gpu_tracking_macros", "gauss_fitting", "ffmpeg_export"]
 
 [package]
 edition = "2021"

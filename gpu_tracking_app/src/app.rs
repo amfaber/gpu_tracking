@@ -89,7 +89,7 @@ impl ProviderDimension {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum DataMode {
     Off,
     Immediate,
@@ -98,7 +98,7 @@ enum DataMode {
 }
 
 pub struct AppWrapper {
-    apps: Vec<Rc<RefCell<Custom3d>>>,
+    apps: Vec<Rc<RefCell<WindowApp>>>,
     opens: Vec<bool>,
     test_function: Option<Box<dyn FnOnce(&mut Self, &mut egui::Ui, &mut eframe::Frame) -> ()>>,
     adapter: Arc<wgpu::Adapter>,
@@ -120,26 +120,19 @@ fn new_adapter() -> Arc<wgpu::Adapter> {
 
 fn new_worker(device_queue: (wgpu::Device, wgpu::Queue)) -> WorkerType {
     ProgressFuture::new(move |job, progress, interrupt| {
-        match job {
-            RecalculateJob {
-                path,
-                tracking_params,
-                channel,
-            } => {
-                let out = RecalculateResult::from(gpu_tracking::execute_gpu::execute_file(
-                    &path,
-                    channel,
-                    tracking_params,
-                    0,
-                    None,
-                    Some(interrupt),
-                    Some(progress),
-                    &device_queue,
-                ));
-                error!("orig finished");
-                out
-            }
-        }
+        let RecalculateJob { path, tracking_params, channel } = job;
+        let out = RecalculateResult::from(gpu_tracking::execute_gpu::execute_file(
+            &path,
+            channel,
+            tracking_params,
+            0,
+            None,
+            Some(interrupt),
+            Some(progress),
+            &device_queue,
+        ));
+        error!("orig finished");
+        out
     })
 }
 
@@ -148,13 +141,13 @@ impl AppWrapper {
         let adapter = new_adapter();
         let (apps, opens) = if autoload.len() == 0 {
             let apps = vec![
-                Rc::new(RefCell::new(Custom3d::new(new_device_queue(&adapter))?)),
+                Rc::new(RefCell::new(WindowApp::new(new_device_queue(&adapter))?)),
             ];
             let opens = vec![true];
             (apps, opens)
         } else {
             let render_state = cc.wgpu_render_state.as_ref().unwrap();
-            let mut apps: Vec<Rc<RefCell<Custom3d>>> = Vec::new();
+            let mut apps: Vec<Rc<RefCell<WindowApp>>> = Vec::new();
             let mut opens = Vec::new();
             for path in autoload {
                 opens.push(true);
@@ -171,7 +164,7 @@ impl AppWrapper {
                         new_app
                     }
                     None => {
-                        Rc::new(RefCell::new(Custom3d::new(new_device_queue(&adapter))?))
+                        Rc::new(RefCell::new(WindowApp::new(new_device_queue(&adapter))?))
                     }
                 };
                 {
@@ -194,15 +187,15 @@ impl AppWrapper {
 
     pub fn test<'a>(cc: &'a eframe::CreationContext<'a>) -> Option<Self> {
         let adapter = new_adapter();
-        let mut app = Custom3d::new(new_device_queue(&adapter))?;
+        let mut app = WindowApp::new(new_device_queue(&adapter))?;
         let opens = vec![true, true];
         let render_state = cc.wgpu_render_state.as_ref().unwrap();
 
-        app.input_state.path = "../gpu_tracking_testing/easy_test_data.tif".to_string();
+        app.input_state.path = "../../gpu_tracking_testing/Tom Data/exp77.tif".to_string();
         app.all_tracks = false;
         ignore_result(app.setup_new_path(render_state));
         let mut next_app = app.clone(new_device_queue(&adapter));
-        next_app.input_state.path = "../gpu_tracking_testing/easy_test_data.tif".to_string();
+        next_app.input_state.path = "../../gpu_tracking_testing/easy_test_data.tif".to_string();
         ignore_result(next_app.setup_new_path(render_state));
 
         let rc_app = Rc::new(RefCell::new(app));
@@ -242,7 +235,7 @@ impl eframe::App for AppWrapper {
                     let response = ui.button("New");
                     if response.clicked() {
                         self.apps.push(Rc::new(RefCell::new(
-                            Custom3d::new(new_device_queue(&self.adapter)).unwrap(),
+                            WindowApp::new(new_device_queue(&self.adapter)).unwrap(),
                         )));
                         self.opens.push(true);
                     }
@@ -357,7 +350,7 @@ enum CouplingType {
 }
 
 struct Coupling {
-    link: Weak<RefCell<Custom3d>>,
+    link: Weak<RefCell<WindowApp>>,
     ty: CouplingType,
 }
 
@@ -370,7 +363,7 @@ impl Clone for Coupling {
     }
 }
 
-pub struct Custom3d {
+pub struct WindowApp {
     worker: WorkerType,
     progress: Option<usize>,
     plot_radius_fallback: f32,
@@ -467,7 +460,7 @@ impl Playback {
     }
 }
 
-impl Custom3d {
+impl WindowApp {
     fn clone(&self, device_queue: (wgpu::Device, wgpu::Queue)) -> Self {
 
         let mode = self.mode.clone();
@@ -904,7 +897,7 @@ fn normalize_rect(rect: egui::Rect) -> egui::Rect {
     egui::Rect { min, max }
 }
 
-impl Custom3d {
+impl WindowApp {
     pub fn setup_gpu_after_clone(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         if self.frame_provider.is_none() {
             return;
@@ -1204,7 +1197,7 @@ impl RecalculateResult {
     }
 }
 
-impl Custom3d {
+impl WindowApp {
     fn video_range(&self) -> Option<RangeInclusive<usize>> {
         let vid_len = self.vid_len.as_ref()?;
         match &self.mode {
@@ -1587,6 +1580,7 @@ impl Custom3d {
         if !self.static_dataset {
             self.get_input(ui, frame);
         } else {
+            self.get_datamode(ui);
             self.color_options(ui);
             ui.horizontal(|ui| {
                 ui.label("Plot diameter");
@@ -1605,6 +1599,7 @@ impl Custom3d {
                     }
                 }
             });
+            self.update_state(ui);
         }
     }
 
@@ -1663,6 +1658,49 @@ impl Custom3d {
                     ui.selectable_value(&mut self.track_colors, TrackColors::Local, "Local");
                     ui.selectable_value(&mut self.track_colors, TrackColors::Global, "Global");
                 });
+        });
+    }
+
+    fn get_datamode(&mut self, ui: &mut egui::Ui){
+        ui.horizontal(|ui| {
+            let mut changed = false;
+            changed |= ui
+                .selectable_value(&mut self.input_state.datamode, DataMode::Off, "Off")
+                .clicked();
+            changed |= ui
+                .selectable_value(&mut self.input_state.datamode, DataMode::Immediate, "One")
+                .clicked();
+            changed |= ui
+                .selectable_value(&mut self.input_state.datamode, DataMode::Full, "All")
+                .clicked();
+            changed |= ui
+                .selectable_value(
+                    &mut self.input_state.datamode,
+                    DataMode::Range(0..=1),
+                    "Range",
+                )
+                .clicked();
+
+            if self.input_state.datamode == DataMode::Range(0..=1) {
+                ui.label("in range");
+                changed |= ui
+                    .add(
+                        egui::widgets::TextEdit::singleline(&mut self.input_state.range_start)
+                            .desired_width(30.),
+                    )
+                    .changed();
+                ui.label("to");
+                changed |= ui
+                    .add(
+                        egui::widgets::TextEdit::singleline(&mut self.input_state.range_end)
+                            .desired_width(30.),
+                    )
+                    .changed();
+            }
+
+            if changed {
+                self.needs_update.datamode = true;
+            }
         });
     }
 
@@ -1733,14 +1771,14 @@ impl Custom3d {
                     ignore_result(self.update_frame(&ui, FrameChange::Input));
 
                     let pathbuf = PathBuf::from(&self.input_state.recording_path);
-                    let pathbuf = if let Some("tif") | Some("tiff") = pathbuf
+                    let pathbuf = if let Some("tif") | Some("tiff") | Some("mp4") = pathbuf
                         .extension()
                         .map(|osstr| osstr.to_str().unwrap_or(""))
                     {
                         Some(pathbuf)
                     } else {
                         let dialog = rfd::FileDialog::new()
-                            .add_filter("Tiff", &["tif", "tiff"])
+                            .add_filter("Tiff", &["tif", "tiff", "mp4"])
                             .set_directory(std::env::current_dir().unwrap())
                             .save_file();
                         if let Some(path) = dialog {
@@ -1766,46 +1804,47 @@ impl Custom3d {
                     .hint_text("Tiff export path"),
             );
         });
-        ui.horizontal(|ui| {
-            let mut changed = false;
-            changed |= ui
-                .selectable_value(&mut self.input_state.datamode, DataMode::Off, "Off")
-                .clicked();
-            changed |= ui
-                .selectable_value(&mut self.input_state.datamode, DataMode::Immediate, "One")
-                .clicked();
-            changed |= ui
-                .selectable_value(&mut self.input_state.datamode, DataMode::Full, "All")
-                .clicked();
-            changed |= ui
-                .selectable_value(
-                    &mut self.input_state.datamode,
-                    DataMode::Range(0..=1),
-                    "Range",
-                )
-                .clicked();
+        self.get_datamode(ui);
+        // ui.horizontal(|ui| {
+        //     let mut changed = false;
+        //     changed |= ui
+        //         .selectable_value(&mut self.input_state.datamode, DataMode::Off, "Off")
+        //         .clicked();
+        //     changed |= ui
+        //         .selectable_value(&mut self.input_state.datamode, DataMode::Immediate, "One")
+        //         .clicked();
+        //     changed |= ui
+        //         .selectable_value(&mut self.input_state.datamode, DataMode::Full, "All")
+        //         .clicked();
+        //     changed |= ui
+        //         .selectable_value(
+        //             &mut self.input_state.datamode,
+        //             DataMode::Range(0..=1),
+        //             "Range",
+        //         )
+        //         .clicked();
 
-            if self.input_state.datamode == DataMode::Range(0..=1) {
-                ui.label("in range");
-                changed |= ui
-                    .add(
-                        egui::widgets::TextEdit::singleline(&mut self.input_state.range_start)
-                            .desired_width(30.),
-                    )
-                    .changed();
-                ui.label("to");
-                changed |= ui
-                    .add(
-                        egui::widgets::TextEdit::singleline(&mut self.input_state.range_end)
-                            .desired_width(30.),
-                    )
-                    .changed();
-            }
+        //     if self.input_state.datamode == DataMode::Range(0..=1) {
+        //         ui.label("in range");
+        //         changed |= ui
+        //             .add(
+        //                 egui::widgets::TextEdit::singleline(&mut self.input_state.range_start)
+        //                     .desired_width(30.),
+        //             )
+        //             .changed();
+        //         ui.label("to");
+        //         changed |= ui
+        //             .add(
+        //                 egui::widgets::TextEdit::singleline(&mut self.input_state.range_end)
+        //                     .desired_width(30.),
+        //             )
+        //             .changed();
+        //     }
 
-            if changed {
-                self.needs_update.datamode = true;
-            }
-        });
+        //     if changed {
+        //         self.needs_update.datamode = true;
+        //     }
+        // });
 
         self.tracking_input(ui);
 
@@ -2402,7 +2441,7 @@ impl Custom3d {
     unsafe fn get_owner(&self, owner: &Option<Coupling>) -> Option<&Self> {
         match owner {
             Some(inner) => {
-                let owner = Some(&*(&*inner.link.upgrade()?.try_borrow().ok()? as *const Custom3d));
+                let owner = Some(&*(&*inner.link.upgrade()?.try_borrow().ok()? as *const WindowApp));
                 owner
             }
             None => Some(self),
@@ -2648,32 +2687,33 @@ impl Custom3d {
                     Playback::Off => (),
                     Playback::FPS(_) => self.playback = Playback::Off,
                     Playback::Recording { rect, data, path } => {
-                        let size = rect.unwrap().size();
-
-                        let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-                        if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
-                            let mut encoder = TiffEncoder::new(writer).unwrap();
-                            for image in data {
-                                let image_encoder = encoder
-                                    .new_image::<colortype::RGBA8>(
-                                        image.size[0] as u32,
-                                        image.size[1] as u32,
-                                    )
-                                    .unwrap();
-                                image_encoder.write_data(image.as_raw()).unwrap();
-                            }
-                        } else {
-                            let mut encoder = TiffEncoder::new_big(writer).unwrap();
-                            for image in data {
-                                let image_encoder = encoder
-                                    .new_image::<colortype::RGBA8>(
-                                        image.size[0] as u32,
-                                        image.size[1] as u32,
-                                    )
-                                    .unwrap();
-                                image_encoder.write_data(image.as_raw()).unwrap();
-                            }
-                        }
+                        // let size = rect.unwrap().size();
+                        export_video(data[0].size, data, path);
+                        
+                        // let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+                        // if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
+                        //     let mut encoder = TiffEncoder::new(writer).unwrap();
+                        //     for image in data {
+                        //         let image_encoder = encoder
+                        //             .new_image::<colortype::RGBA8>(
+                        //                 image.size[0] as u32,
+                        //                 image.size[1] as u32,
+                        //             )
+                        //             .unwrap();
+                        //         image_encoder.write_data(image.as_raw()).unwrap();
+                        //     }
+                        // } else {
+                        //     let mut encoder = TiffEncoder::new_big(writer).unwrap();
+                        //     for image in data {
+                        //         let image_encoder = encoder
+                        //             .new_image::<colortype::RGBA8>(
+                        //                 image.size[0] as u32,
+                        //                 image.size[1] as u32,
+                        //             )
+                        //             .unwrap();
+                        //         image_encoder.write_data(image.as_raw()).unwrap();
+                        //     }
+                        // }
                         self.playback = Playback::Off;
                     }
                 },
@@ -2859,4 +2899,60 @@ fn colormap_dropdown(ui: &mut egui::Ui, input: &mut colormaps::KnownMaps) -> boo
         clicked |= ui.selectable_value(input, cmap, cmap.get_name()).clicked();
     }
     clicked
+}
+
+
+fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
+    #[cfg(not(feature = "ffmpeg"))]
+    {
+        let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+        if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
+            let mut encoder = TiffEncoder::new(writer).unwrap();
+            for image in data {
+                let image_encoder = encoder
+                    .new_image::<colortype::RGBA8>(
+                        image.size[0] as u32,
+                        image.size[1] as u32,
+                    )
+                    .unwrap();
+                image_encoder.write_data(image.as_raw()).unwrap();
+            }
+        } else {
+            let mut encoder = TiffEncoder::new_big(writer).unwrap();
+            for image in data {
+                let image_encoder = encoder
+                    .new_image::<colortype::RGBA8>(
+                        image.size[0] as u32,
+                        image.size[1] as u32,
+                    )
+                    .unwrap();
+                image_encoder.write_data(image.as_raw()).unwrap();
+            }
+        }
+    }
+    #[cfg(feature = "ffmpeg")]
+    {
+        // std::thread::scope(move |s|{
+        //     let handle = s.spawn(move ||{
+                // let _runtime = com::runtime::ApartmentRuntime::new(com::runtime::ApartmentType::Multithreaded).unwrap();
+                // dbg!(size.x);
+                // dbg!(size.y);
+                
+                let mut encoder = ffmpeg_export::VideoEncoder::new(
+                    size[0] as i32,
+                    size[1] as i32,
+                    ffmpeg_export::PixelFormat::RGBA,
+                    path,
+                    25,
+                    None
+                ).unwrap();
+
+                for img in data{
+                    encoder.encode_frame(img.as_raw()).unwrap();
+                }
+        //     });
+        //     let _ = handle.join();
+        // })
+
+    }
 }

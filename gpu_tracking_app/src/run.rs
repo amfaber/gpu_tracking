@@ -1,6 +1,8 @@
 use clap::Parser;
 use eframe;
 use tracing_subscriber;
+use com::runtime::{ApartmentType, init_runtime};
+
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -56,8 +58,7 @@ fn run(args: Args) {
     } = args;
     let verbosity = verbosity.unwrap_or(0);
     let test = test.unwrap_or(false);
-	
-
+    
     if verbosity > 0 {
         tracing_subscriber::fmt()
             .with_max_level(tracing_subscriber::filter::LevelFilter::ERROR)
@@ -77,9 +78,9 @@ fn run(args: Args) {
         options,
         Box::new(move |cc| {
             if !test {
-                Box::new(crate::custom3d_wgpu::AppWrapper::new(cc, paths).unwrap())
+                Box::new(crate::app::AppWrapper::new(cc, paths).unwrap())
             } else {
-                Box::new(crate::custom3d_wgpu::AppWrapper::test(cc).unwrap())
+                Box::new(crate::app::AppWrapper::test(cc).unwrap())
             }
         }),
     )

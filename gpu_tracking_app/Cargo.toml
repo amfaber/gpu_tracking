@@ -12,6 +12,9 @@ path = "src/main.rs"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["ffmpeg"]
+ffmpeg = ["ffmpeg_export"]
 
 [dependencies]
 # chrono = { version = "0.4", features = ["js-sys", "wasmbind"] }
@@ -45,3 +48,6 @@ tracing-subscriber = "0.3.16"
 clap = "4.1.11"
 wgpu = "0.15.1"
 pollster = "0.3.0"
+ffmpeg_export = { path = "../ffmpeg_export", optional = true }
+com = "0.6.0"
+
