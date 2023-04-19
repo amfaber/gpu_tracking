@@ -11,6 +11,7 @@ proc-macro = true
 lazy_static = "1.4.0"
 proc-macro2 = "1.0.50"
 quote = "1.0.23"
+rust-format = "0.3.4"
 strum = { version = "0.24.1", features = ["derive"] }
 syn = { version = "1.0.107", features = ["full", "extra-traits"] }
 

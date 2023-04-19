@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 import uuid
 
+# __all__ = ["batch", "characterize_points", "link", "connect", "LoG"]
+# print("getting imported")
+# print(__all__)
+
 def batch(
     video_or_path,
     diameter,
@@ -89,6 +93,9 @@ def characterize_points(
     
 
 def link(to_link, search_range, memory):
+    """
+        Testing a docstring
+    """
     if isinstance(to_link, pd.DataFrame):
         to_link_np = to_link[["frame", "y", "x"]].to_numpy()
     else:

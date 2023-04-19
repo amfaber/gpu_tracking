@@ -5,6 +5,12 @@ use strum::{EnumIter, IntoEnumIterator};
 use InputType::*;
 use Style::*;
 
+// struct Argument{
+//     func: TokenStream2,
+//     init: TokenStream2,
+//     docs: &'static str,
+// }
+
 type TokenStream2 = proc_macro2::TokenStream;
 
 #[derive(Clone, Copy, EnumIter, Debug, PartialEq)]
@@ -26,6 +32,10 @@ fn make_func(inp: InputType, style: Style) -> TokenStream2 {
     let bod = body(inp, style);
     let all_args = args(inp, style);
     let out = quote!(
+        /// test(a)
+        /// --
+        ///
+        /// test-test
         #[pyfunction]
         fn #name<'py>(#all_args) -> #ret{
             #bod
@@ -132,8 +142,23 @@ fn body(inp: InputType, style: Style) -> TokenStream2 {
             let res = #func_name(&#argdiff, params, 0, None, None, None, &device_queue).map_err(|err| err.pyerr())?;
             res
         };
-        let res = (res.0.into_pyarray(py), res.1.into_py(py));
-        Ok(res)
+        let (np_arr, types) = (res.0.into_pyarray(py), res.1);
+        // let (np_arr, columns) = (res.0.into_pyarray(py), res.1.into_py(py));
+        // let pandas = PANDAS.as_ref(py);
+        // let kwargs = HashMap::from()
+        // let df = pandas.call("DataFrame", (), )
+        let pandas = PANDAS.as_ref(py);
+        let column_names: Vec<_> = types.iter().cloned().map(|(name, ty)| name).collect();
+        let column_types: HashMap<&str, &str> = types.iter().cloned().collect();
+        let kwargs = HashMap::from([
+            ("columns", column_names.into_py(py)),
+        ]);
+        let df_func = pandas.getattr("DataFrame")?;
+        let df = df_func.call((np_arr,), Some(kwargs.into_py_dict(py)))?;
+        let df = df.call_method1("astype", (column_types, ));
+        
+        df
+        // Ok(res)
     );
 
     quote!(
@@ -353,7 +378,8 @@ fn array_post_args() -> TokenStream2 {
 }
 
 fn return_type() -> TokenStream2 {
-    quote!(PyResult<(&'py PyArray2<my_dtype>, Py<PyAny>)>)
+    // quote!(PyResult<(&'py PyArray2<my_dtype>, Py<PyAny>)>)
+    quote!(PyResult<&'py PyAny>)
 }
 
 #[proc_macro]
