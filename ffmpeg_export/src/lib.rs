@@ -449,6 +449,9 @@ pub enum Error{
 
     #[error("Couldn't find the specified codec")]
     FindCodec,
+
+    #[error("The passed data must have length=width*height")]
+    InvalidDataLen
     
 }
 use Error::*;
@@ -584,6 +587,9 @@ impl VideoEncoder{
         }
     }
     pub fn encode_frame(&mut self, data: &[u8]) -> Result<()>{
+        if data.len() != (self.width * self.height) as usize{
+            return Err(InvalidDataLen)
+        }
         unsafe{
             write_frame(self.oc, &mut self.ost, Some(data), self.input_format, self.width, self.height)?;
         }
