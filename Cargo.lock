@@ -1579,6 +1579,7 @@ dependencies = [
  "lazy_static",
  "proc-macro2",
  "quote",
+ "rust-format",
  "strum",
  "syn 1.0.109",
 ]
@@ -1593,6 +1594,7 @@ dependencies = [
  "gpu_tracking_app",
  "gpu_tracking_macros",
  "indicatif",
+ "lazy_static",
  "ndarray",
  "numpy",
  "pollster 0.3.0",
@@ -3068,6 +3070,12 @@ dependencies = [
  "web-sys",
  "windows 0.37.0",
 ]
+
+[[package]]
+name = "rust-format"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60e7c00b6c3bf5e38a880eec01d7e829d12ca682079f8238a464def3c4b31627"
 
 [[package]]
 name = "rustc-demangle"

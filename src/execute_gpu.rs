@@ -911,7 +911,6 @@ pub fn execute_gpu<F: IntoSlice + Send, P: FrameProvider<Frame = F> + ?Sized>(
     } else {
         (None, None)
     };
-    error!("entering execute_gpu");
 
     let output = std::thread::scope(
         |scope: &Scope| -> Result<(Vec<f32>, Option<Vec<crate::linking::DurationBookkeep>>)> {
@@ -1285,7 +1284,6 @@ pub fn execute_provider<
     progress: Option<&Arc<Mutex<(usize, Option<usize>)>>>,
     device_queue: &(wgpu::Device, wgpu::Queue),
 ) -> crate::error::Result<(Array2<my_dtype>, Vec<(&'static str, &'static str)>)> {
-    error!("entering provider");
     let pos_iter = match pos_array {
         Some((pos_array, true, true)) => Some(FrameSubsetter::new(
             pos_array,
@@ -1322,9 +1320,7 @@ pub fn execute_provider<
     };
 
     let (provider, dims) = provider_generator()?;
-    error!("before state setup");
     let mut state = gpu_setup::setup_state(&params, &dims, pos_iter.is_some(), device_queue)?;
-    error!("state was set up");
 
     if params.illumination_sigma.is_some() && !params.illumination_correction_per_frame {
         // let (provider, dims) = path_to_iter(&path, None)?;
@@ -1366,7 +1362,6 @@ pub fn execute_file<'a>(
     progress: Option<&Arc<Mutex<(usize, Option<usize>)>>>,
     device_queue: &(wgpu::Device, wgpu::Queue),
 ) -> crate::error::Result<(Array2<my_dtype>, Vec<(&'static str, &'static str)>)> {
-    error!("entering execute_file");
     let path = Into::<PathBuf>::into(path);
     let generator = || path_to_iter(&path, channel);
 

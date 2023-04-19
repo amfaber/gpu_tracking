@@ -1,5 +1,5 @@
 #![allow(warnings)]
-use std::{fs::File, path::PathBuf, sync::{atomic::AtomicUsize, Arc}};
+use std::{fs::File, path::PathBuf, sync::{atomic::AtomicUsize, Arc}, collections::HashMap};
 
 use ::gpu_tracking::{
     decoderiter::MinimalETSParser,
@@ -22,6 +22,29 @@ use pyo3::{
     types::{IntoPyDict, PyDict},
 };
 use tiff::encoder::*;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref PANDAS: PyObject = {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let pandas = PyModule::import(py, "pandas").unwrap();
+        pandas.to_object(py)
+    };
+}
+
+fn test<'py>(_py: Python<'py>,np_arr: &'py PyArray2<f32>, types: Vec<(&'static str, &'static str)>) {
+    let pandas = PANDAS.as_ref(_py);
+    let column_names: Vec<_> = types.iter().cloned().map(|(name, ty)| name).collect();
+    let column_types: HashMap<&str, &str> = types.iter().cloned().collect();
+    let kwargs = HashMap::from([
+        ("columns", column_names.into_py(_py)),
+        ("dtypes", column_types.into_py(_py)),
+    ]);
+    let df_func = pandas.getattr("DataFrame").unwrap();
+    // df_func.call_methodcall
+    // let  = df_func.call((), Some(kwargs.into_py_dict(_py)));
+}
 
 trait ToPyErr {
     fn pyerr(self) -> PyErr;
@@ -86,6 +109,11 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
 
     // m.add_function(wrap_pyfunction!(test, m)?)?;
 
+    /// load(path, keys, channel)
+    /// --
+    ///
+    /// test
+    
     #[pyfn(m)]
     #[pyo3(name = "load")]
     fn load<'py>(

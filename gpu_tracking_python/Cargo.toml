@@ -17,6 +17,7 @@ indicatif = "0.17.3"
 tiff = "0.9.0"
 wgpu = "0.15.1"
 pollster = "0.3.0"
+lazy_static = "1.4.0"
 
 
 [dependencies.pyo3]
