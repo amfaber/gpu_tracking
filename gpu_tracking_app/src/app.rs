@@ -2932,27 +2932,16 @@ fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
     }
     #[cfg(feature = "ffmpeg")]
     {
-        // std::thread::scope(move |s|{
-        //     let handle = s.spawn(move ||{
-                // let _runtime = com::runtime::ApartmentRuntime::new(com::runtime::ApartmentType::Multithreaded).unwrap();
-                // dbg!(size.x);
-                // dbg!(size.y);
-                
-                let mut encoder = ffmpeg_export::VideoEncoder::new(
-                    size[0] as i32,
-                    size[1] as i32,
-                    ffmpeg_export::PixelFormat::RGBA,
-                    path,
-                    25,
-                    None
-                ).unwrap();
+        let mut encoder = ffmpeg_export::VideoEncoder::new(
+            size[0] as i32,
+            size[1] as i32,
+            ffmpeg_export::PixelFormat::RGBA,
+            path,
+            25,
+        ).unwrap();
 
-                for img in data{
-                    encoder.encode_frame(img.as_raw()).unwrap();
-                }
-        //     });
-        //     let _ = handle.join();
-        // })
-
+        for img in data{
+            encoder.encode_frame(img.as_raw()).unwrap();
+        }
     }
 }
