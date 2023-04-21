@@ -1,0 +1,6 @@
+[submodule "python/gpu_tracking/docs/_build/html2"]
+	path = python/gpu_tracking/docs/_build/html2
+	url = https://github.com/amfaber/gpu_tracking_docs
+[submodule "python/gpu_tracking/docs/_build/html"]
+	path = python/gpu_tracking/docs/_build/html
+	url = https://github.com/amfaber/gpu_tracking_docs
