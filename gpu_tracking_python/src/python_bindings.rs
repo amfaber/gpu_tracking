@@ -4,7 +4,7 @@ use std::{fs::File, path::PathBuf, sync::{atomic::AtomicUsize, Arc}, collections
 use ::gpu_tracking::{
     decoderiter::MinimalETSParser,
     error::{Error, Result},
-    execute_gpu::{execute_file, execute_ndarray, mean_from_iter, path_to_iter},
+    execute_gpu::{execute_file, execute_ndarray, mean_from_iter, path_to_iter, CommandBuilder, FileOrArray},
     gpu_setup::{new_adapter, new_device_queue, ParamStyle, TrackingParams},
     linking,
     linking::SubsetterType,
@@ -13,16 +13,17 @@ use ::gpu_tracking::{
 };
 use gpu_tracking_app;
 use gpu_tracking_macros::gen_python_functions;
-use ndarray::{Array, Array2, ArrayView2, Axis};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray2, PyReadonlyArray3};
+use ndarray::{Array, Array2, ArrayView2, Axis, ArrayView3};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray2, PyReadonlyArray3, PyArrayDyn, Element, PyReadonlyArrayDyn};
 use pollster::FutureExt;
 use pyo3::{
     prelude::*,
     pyclass::IterNextOutput,
-    types::{IntoPyDict, PyDict},
+    types::{IntoPyDict, PyDict, PyType},
 };
 use tiff::encoder::*;
 use lazy_static::lazy_static;
+use std::any::Any;
 
 lazy_static! {
     static ref PANDAS: PyObject = {
@@ -33,21 +34,126 @@ lazy_static! {
     };
 }
 
-fn test<'py>(_py: Python<'py>,np_arr: &'py PyArray2<f32>, types: Vec<(&'static str, &'static str)>) {
-    let pandas = PANDAS.as_ref(_py);
-    let column_names: Vec<_> = types.iter().cloned().map(|(name, ty)| name).collect();
-    let column_types: HashMap<&str, &str> = types.iter().cloned().collect();
-    let kwargs = HashMap::from([
-        ("columns", column_names.into_py(_py)),
-        ("dtypes", column_types.into_py(_py)),
-    ]);
-    let df_func = pandas.getattr("DataFrame").unwrap();
-    // df_func.call_methodcall
-    // let  = df_func.call((), Some(kwargs.into_py_dict(_py)));
+// lazy_static! {
+//     static ref NP_NDARRAY: PyObject = {
+//         let gil = Python::acquire_gil();
+//         let py = gil.python();
+//         let numpy = PyModule::import(py, "numpy").unwrap();
+//         let ndarray = numpy.getattr("ndarray").unwrap();
+//         ndarray.to_object(py)
+//     };
+// }
+
+lazy_static! {
+    static ref NUMPY: PyObject = {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let numpy = PyModule::import(py, "numpy").unwrap();
+        // let ndarray = numpy.getattr("ndarray").unwrap();
+        numpy.to_object(py)
+    };
 }
 
 trait ToPyErr {
     fn pyerr(self) -> PyErr;
+}
+
+
+// fn helper(file_or_array: &PyAny){
+//     if let Ok(path) = file_or_array.extract::<String>(){
+//         let closure = Box::new(move |job: &dyn Any, progress, interrupt|{
+//             let (path, channel, params, characterize_points): (&String, Option<usize>, TrackingParams, Option<(ArrayView2<my_dtype>, bool, bool)>) = job.downcast().unwrap();
+//             execute_file(&path, channel, params, 0, characterize_points, Some(interrupt), Some(progress), &device_queue)
+//         });
+//         let mut worker = ScopedProgressFuture::new(scope, closure);
+//         worker.submit_same((&path, channel, params, characterize_points));
+//         worker
+//     } else if let Ok(array) = make_arr_3df32(py, file_or_array){
+//         let rust_array = array.as_array();
+//         let closure = Box::new(move |job, progress, interrupt|{
+//             let job = job.downcast::<(&ArrayView3<f32>, Option<usize>, TrackingParams, Option<(ArrayView2<my_dtype>, bool, bool)>)>();
+//             let (array, channel, params, characterize_points): (&ArrayView3<f32>, Option<usize>, TrackingParams, Option<(ArrayView2<my_dtype>, bool, bool)>) = job.downcast().unwrap();
+//             execute_ndarray(array, params, 0, characterize_points, Some(interrupt), Some(progress), &device_queue)
+//         }) as Box<dyn Fn(&dyn Any, &Arc<Mutex>)>;
+        
+//         let mut worker = ScopedProgressFuture::new(scope, closure as &dyn Fn(&dyn Any, ));
+//         worker.submit_same((&rust_array, channel, params, characterize_points));
+//         worker
+//     } else {
+//         return Err(pyo3::exceptions::PyValueError::new_err("First argument must be a path or a numpy array"))
+//     }
+// }
+
+// enum ArrayOrFile<'a>{
+//     File(&'a String),
+//     Array(ArrayView3<'a, f32>),
+// }
+
+// fn extract_array_inner<'p>(py: Python<'p>, any: &'p PyAny) -> PyResult<PyObject>{
+
+enum OwnedFileOrArray<'p>{
+    File(String),
+    Array(ArrayView3<'p, f32>)
+}
+
+impl<'p> OwnedFileOrArray<'p>{
+    fn new(py: Python<'p>, any: &'p PyAny) -> PyResult<Self>{
+        if let Ok(path) = any.extract::<String>(){
+            return Ok(Self::File(path))
+        }
+        
+        match make_arr_3df32(py, any){
+            Ok(array) => return {
+                let array = array.as_array();
+                let array = unsafe{ ArrayView3::from_shape_ptr(array.raw_dim(), array.as_ptr()) };
+                Ok(Self::Array(array))
+            },
+            Err(e) => return Err(e),
+        }
+        
+        return Err(pyo3::exceptions::PyValueError::new_err("First argument must be a path or a numpy array"))
+    }
+
+    fn borrow(&'p self) -> FileOrArray<'p, String>{
+
+        match self{
+            Self::File(path) => FileOrArray::File(path.clone()),
+            Self::Array(array) => {
+                // let arr3d = unsafe{ ArrayView3::from_shape_ptr(arr3d.raw_dim(), arr3d.as_ptr()) };
+                // let arr3d = unsafe{ &*(&arr3d as *const ArrayView3<f32>) };
+                FileOrArray::Array(&array)
+            }
+        }
+    }
+}
+
+// fn test<'p>(py: Python<'p>, any: &'p PyAny){
+//     let py_foa = PyFileOrArray::new(py, any).unwrap();
+//     let rust_foa = py_foa.to_rust();
+//     let idk = CommandBuilder::new()
+//         .set_file_or_array(rust_foa);
+// }
+
+fn make_arr_3df32<'p>(py: Python<'p>, any: &'p PyAny) -> PyResult<PyReadonlyArray3<'p, f32>>{
+// fn make_arr_3df32<'p>(py: Python<'p>, any: &'p PyAny) -> PyResult<&'p ArrayView3<'p, f32>>{
+    
+    let locals = [
+        ("np", NUMPY.as_ref(py)),
+        ("arr", any),
+    ].into_py_dict(py);
+    let arr3d = py.eval(r#"np.atleast_3d(arr).astype("float32", copy = False)"#, None, Some(&locals))?;
+
+    let arr3d = arr3d.extract::<&PyArray3<f32>>()?;
+    let arr3d = arr3d.readonly();
+    // let arr3d = arr3d.as_array();
+    
+    // let arr3d = unsafe{ ArrayView3::from_shape_ptr(arr3d.raw_dim(), arr3d.as_ptr()) };
+    // let arr3d = unsafe{ &*(&arr3d as *const ArrayView3<f32>) };
+    // Ok(arr3d.as_array())
+    // todo!()
+    // Ok(arr3d)
+    Ok(arr3d)
+    
 }
 
 impl ToPyErr for Error {
@@ -79,7 +185,8 @@ impl ToPyErr for Error {
             | Error::FrameOOB
             | Error::ChannelNotFound
             | Error::CastError
-            | Error::TooDenseToLink => pyo3::exceptions::PyValueError::new_err(self.to_string()),
+            | Error::TooDenseToLink
+            | Error::WrongBuilder => pyo3::exceptions::PyValueError::new_err(self.to_string()),
         }
     }
 }
@@ -91,31 +198,29 @@ impl ToPyErr for ::gpu_tracking::progressfuture::Error {
 }
 
 
+
 gen_python_functions!();
+
+
 
 #[pymodule]
 fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(batch_rust, m)?)?;
 
-    m.add_function(wrap_pyfunction!(batch_file_rust, m)?)?;
+    // m.add_function(wrap_pyfunction!(batch_file_rust, m)?)?;
 
-    m.add_function(wrap_pyfunction!(log_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(LoG_rust, m)?)?;
 
-    m.add_function(wrap_pyfunction!(log_file_rust, m)?)?;
+    // m.add_function(wrap_pyfunction!(log_file_rust, m)?)?;
 
-    m.add_function(wrap_pyfunction!(characterize_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(characterize_points_rust, m)?)?;
 
-    m.add_function(wrap_pyfunction!(characterize_file_rust, m)?)?;
+    // m.add_function(wrap_pyfunction!(characterize_file_rust, m)?)?;
 
     // m.add_function(wrap_pyfunction!(test, m)?)?;
 
-    /// load(path, keys, channel)
-    /// --
-    ///
-    /// test
-    
     #[pyfn(m)]
-    #[pyo3(name = "load")]
+    #[pyo3(name = "load_rust")]
     fn load<'py>(
         py: Python<'py>,
         path: &str,
@@ -252,8 +357,8 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "mean_from_disk")]
-    fn mean_from_disk<'py>(
+    #[pyo3(name = "mean_from_file_rust")]
+    fn mean_from_file<'py>(
         py: Python<'py>,
         path: &str,
         channel: Option<usize>,
@@ -267,8 +372,8 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "tracking_app")]
-    fn app<'py>(_py: Python<'py>) {
-        gpu_tracking_app::run::run_ignore();
+    fn app<'py>(_py: Python<'py>, doc_dir: PathBuf) {
+        gpu_tracking_app::run::run_python(doc_dir);
     }
 
     #[pyfn(m)]

@@ -102,6 +102,7 @@ pub struct AppWrapper {
     opens: Vec<bool>,
     test_function: Option<Box<dyn FnOnce(&mut Self, &mut egui::Ui, &mut eframe::Frame) -> ()>>,
     adapter: Arc<wgpu::Adapter>,
+    doc_dir: Option<PathBuf>,
 }
 
 fn new_adapter() -> Arc<wgpu::Adapter> {
@@ -137,7 +138,7 @@ fn new_worker(device_queue: (wgpu::Device, wgpu::Queue)) -> WorkerType {
 }
 
 impl AppWrapper {
-    pub fn new<'a>(cc: &'a eframe::CreationContext<'a>, autoload: Vec<String>) -> Option<Self> {
+    pub fn new<'a>(cc: &'a eframe::CreationContext<'a>, autoload: Vec<String>, doc_dir: Option<PathBuf>) -> Option<Self> {
         let adapter = new_adapter();
         let (apps, opens) = if autoload.len() == 0 {
             let apps = vec![
@@ -182,6 +183,7 @@ impl AppWrapper {
             opens,
             test_function: None,
             adapter,
+            doc_dir,
         })
     }
 
@@ -219,6 +221,7 @@ impl AppWrapper {
             opens,
             test_function: function,
             adapter,
+            doc_dir: None,
         })
     }
 }
@@ -238,6 +241,11 @@ impl eframe::App for AppWrapper {
                             WindowApp::new(new_device_queue(&self.adapter)).unwrap(),
                         )));
                         self.opens.push(true);
+                    }
+                    if let Some(doc_dir) = self.doc_dir.as_ref().and_then(|inner| inner.as_os_str().to_str()){
+                        if ui.button("Help").clicked(){
+                            let _ = webbrowser::open(doc_dir);
+                        }
                     }
                     let mut adds = Vec::new();
                     let mut removes = Vec::new();
@@ -2938,6 +2946,7 @@ fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
             ffmpeg_export::PixelFormat::RGBA,
             path,
             25,
+            None,
         ).unwrap();
 
         for img in data{

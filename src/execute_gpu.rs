@@ -1271,7 +1271,7 @@ pub fn path_to_iter<P: AsRef<std::path::Path>>(
 }
 
 pub fn execute_provider<
-    'a,
+    'a, 
     F: IntoSlice + Send,
     P: FrameProvider<Frame = F> + ?Sized,
     G: Fn() -> Result<(Box<P>, [u32; 2])>,
@@ -1386,6 +1386,7 @@ pub fn execute_ndarray<'a>(
     device_queue: &(wgpu::Device, wgpu::Queue),
 ) -> crate::error::Result<(Array2<my_dtype>, Vec<(&'static str, &'static str)>)> {
     if !array.is_standard_layout() {
+        dbg!(array.strides());
         return Err(crate::error::Error::NonStandardArrayLayout);
     }
     let dims_usize = array.shape();
@@ -1401,3 +1402,118 @@ pub fn execute_ndarray<'a>(
         device_queue,
     )
 }
+
+pub enum FileOrArray<'a, P: Into<PathBuf>>{
+    File(P),
+    Array(&'a ArrayView3<'a, f32>),
+}
+
+pub struct CommandBuilder<'a, 'b, 'c, P: Into<PathBuf>>{
+    array: Option<&'a ArrayView3<'a, my_dtype>>,
+    path: Option<P>,
+    channel: Option<usize>,
+    params: Option<TrackingParams>,
+    verbosity: u32,
+    pos_array: Option<(ArrayView2<'a, my_dtype>, bool, bool)>,
+    interruption: Option<&'b Arc<AtomicBool>>,
+    progress: Option<&'b Arc<Mutex<(usize, Option<usize>)>>>,
+    device_queue: Option<&'c (wgpu::Device, wgpu::Queue)>,
+}
+
+impl<'a, 'b, 'c, P: Into<PathBuf>> CommandBuilder<'a, 'b, 'c, P>{
+    pub fn new() -> Self{
+        CommandBuilder{
+            array: None,
+            path: None,
+            channel: None,
+            params: None,
+            verbosity: 0,
+            pos_array: None,
+            interruption: None,
+            progress: None,
+            device_queue: None,
+        }
+    }
+
+    pub fn set_file_or_array(mut self, file_or_array: FileOrArray<'a, P>) -> Self{
+        match file_or_array{
+            FileOrArray::File(path) => self.path = Some(path),
+            FileOrArray::Array(array) => self.array = Some(array),
+        }
+        self
+    }
+    
+    pub fn set_array(mut self, arr: &'a ArrayView3<'a, my_dtype>) -> Self{
+        self.array = Some(arr);
+        self
+    }
+
+    pub fn set_path(mut self, path: P, channel: Option<usize>) -> Self{
+        self.path = Some(path);
+        self.channel = channel;
+        self
+    }
+
+    pub fn set_rest(
+        mut self,
+        params: TrackingParams,
+        verbosity: u32,
+        pos_array: Option<(ArrayView2<'a, my_dtype>, bool, bool)>,
+        device_queue: &'c (wgpu::Device, wgpu::Queue),
+    ) -> Self{
+        self.params = Some(params);
+        self.verbosity = verbosity;
+        self.pos_array = pos_array;
+        self.device_queue = Some(device_queue);
+        self
+    }
+    
+    pub fn set_interruption(
+        mut self,
+        interruption: Option<&'b Arc<AtomicBool>>,
+        progress: Option<&'b Arc<Mutex<(usize, Option<usize>)>>>,
+    ) -> Self{
+        self.interruption = interruption;
+        self.progress = progress;
+        self
+    }
+
+    pub fn execute(self) -> Result<(Array2<my_dtype>, Vec<(&'static str, &'static str)>)>{
+
+        let Some(params) = self.params else { return Err(Error::WrongBuilder) };
+        let Some(device_queue) = self.device_queue else { return Err(Error::WrongBuilder) };
+        
+        match (self.path, self.array){
+            (Some(path), None) => {
+                execute_file(
+                    path,
+                    self.channel,
+                    params,
+                    self.verbosity,
+                    self.pos_array,
+                    self.interruption,
+                    self.progress,
+                    device_queue,
+                )
+            },
+            (None, Some(array)) => {
+                execute_ndarray(
+                    array,
+                    params,
+                    self.verbosity,
+                    self.pos_array,
+                    self.interruption,
+                    self.progress,
+                    device_queue,
+                )
+            }
+            _ => return Err(Error::WrongBuilder)
+        }
+        
+    }
+}
+
+
+
+
+

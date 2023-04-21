@@ -2,99 +2,93 @@ from gpu_tracking import *
 import pandas as pd
 import numpy as np
 import uuid
+from .generated import *
 
 # __all__ = ["batch", "characterize_points", "link", "connect", "LoG"]
 # print("getting imported")
 # print(__all__)
 
-def batch(
-    video_or_path,
-    diameter,
-    **kwargs
-    ):
-    if isinstance(video_or_path, np.ndarray):
-        video = video_or_path
-        if video.ndim == 2:
-            video = video[None, ...]    
-        arr, columns = batch_rust(
-            video,
-            diameter,
-            **kwargs
-        )
-    else:
-        path = str(video_or_path)
-        arr, columns = batch_file_rust(
-            path,
-            diameter,
-            **kwargs
-        )
+# def batch(
+#     video_or_path,
+#     diameter,
+#     **kwargs
+#     ):
+#     """Test: {}"""
+#     return batch_rust(
+#         video_or_path,
+#         diameter,
+#         **kwargs
+#     )
 
-    columns = {name: typ for name, typ in columns}
-    return pd.DataFrame(arr, columns = columns).astype(columns)
+# def characterize_points(
+#     video_or_path,
+#     points_to_characterize,
+#     diameter = None,
+#     has_frames = None,
+#     has_r = None,
+#     **kwargs,
+# ):
+#     if isinstance(points_to_characterize, pd.DataFrame):
+#         cols = ["y", "x"]
+#         if "frame" in points_to_characterize.columns:
+#             cols = ["frame"] + cols
+#             if has_frames is None:
+#                 has_frames = True
+#         if "r" in points_to_characterize.columns:
+#             cols = cols + ["r"]
+#             if has_r is None:
+#                 has_r = True
 
-def characterize_points(
-    video_or_path,
-    points_to_characterize,
-    diameter = None,
-    has_frames = None,
-    has_r = None,
-    **kwargs,
-):
-    if isinstance(points_to_characterize, pd.DataFrame):
-        cols = ["y", "x"]
-        if "frame" in points_to_characterize.columns:
-            cols = ["frame"] + cols
-            if has_frames is None:
-                has_frames = True
-        if "r" in points_to_characterize.columns:
-            cols = cols + ["r"]
-            if has_r is None:
-                has_r = True
+#         if has_frames is None:
+#             has_frames = False
+#         if has_r is None:
+#             has_r = False
+#         points_arr = points_to_characterize[cols].to_numpy().astype("float32")
+#     else:
+#         points_arr = points_to_characterize
 
-        if has_frames is None:
-            has_frames = False
-        if has_r is None:
-            has_r = False
-        points_arr = points_to_characterize[cols].to_numpy().astype("float32")
-    else:
-        points_arr = points_to_characterize
-
-    if diameter is None:
-        if has_r:
-            diameter = 2*int(points_arr[:, -1].max() + 0.5) + 1
-        else:
-            raise ValueError("Diameter needs to be specified if the supplied points don't have associated radiuses")
+#     if diameter is None:
+#         if has_r:
+#             diameter = 2*int(points_arr[:, -1].max() + 0.5) + 1
+#         else:
+#             raise ValueError("Diameter needs to be specified if the supplied points don't have associated radiuses")
             
-    if isinstance(video_or_path, np.ndarray):
-        video = video_or_path
-        if video.ndim == 2:
-            video = video[None, ...]
-        arr, columns = characterize_rust(
-            video,
-            points_arr,
-            has_frames,
-            has_r,
-            diameter,
-            **kwargs
-        )
-    else:
-        path = str(video_or_path)
-        arr, columns = characterize_file_rust(
-            path,
-            points_arr,
-            has_frames,
-            has_r,
-            diameter,
-            **kwargs
-        )
+#     return characterize_rust(
+#         video_or_path,
+#         points_arr,
+#         has_frames,
+#         has_r,
+#         diameter,
+#         **kwargs
+#     )
 
-    columns = {name: typ for name, typ in columns}
-    return pd.DataFrame(arr, columns = columns).astype(columns)
     
+# def LoG(video_or_path, min_r, max_r, **kwargs):
+#     return LoG_rust(
+#         video_or_path,
+#         min_r,
+#         max_r,
+#         **kwargs
+#     )
 
 def link(to_link, search_range, memory):
     """
-        Testing a docstring
+    Performs optimal (as opposed to greedy) nearest neighbor linking on the provided dataframe.
+    
+    Returns:
+        pandas.DataFrame: The input dataframe with an additional column "particle", which denotes which
+        particles are identical throughout frames.
+
+    Args:
+        to_link: A pandas dataframe with atleast the columns "frame", "y" and "x".
+        
+        search_range: The upper cutoff distance for nearest neighbor linking.
+        
+        memory: The number of frames that a particle is allowed to disappear before reappearing, for the purposes of linking.\
+        memory = 5 means that a particle can be gone for 5 frames, reappearing in the 6th and still be linked to the\
+        track it had built previously. If it had reappeared in the 7th, it would instead have been considered a new\
+        particle. Defaults to 0, and has no effect if search_range is not set.
+    
     """
     if isinstance(to_link, pd.DataFrame):
         to_link_np = to_link[["frame", "y", "x"]].to_numpy()
@@ -112,6 +106,27 @@ def link(to_link, search_range, memory):
     return output
 
 def connect(to_link1, to_link2, search_range, merge = True):
+    """
+    Does linking on a frame-by-frame basis between two dataframes from different detection runs.
+    This has multiple uses, such colocalizing associating detections in two separate channels,
+    or evaluating a tracking algorithm by "connect"ing the predicted positions to ground truth
+    detections or detections from another algorithm.
+
+    Returns:
+        pandas.DataFrame: A merged dataframe containing all the detections from the two\
+        input dataframes with an additional column "connect particle", that associates detections
+        from the two input dataframes. Detections that are present in, for example, dataframe 1
+        but not dataframe 2 will show as having NaN for all the "_y" suffixed columns, whereas the
+        inverse shows as NaNs in the "_x" suffixed columns
+
+    Args:
+        to_link1: First input dataframe
+        to_link2: Second input dataframe
+        search_range: The search range for linking. See :ref:`link <link>`
+        merge: Whether to return a merged dataframe. Defaults to True. If False, instead returns\
+        the input dataframes with "connect particle" as an additional column in both.
+    
+    """
     if isinstance(to_link1, pd.DataFrame):
         to_link_np1 = to_link1[["frame", "y", "x"]].to_numpy()
     else:
@@ -143,29 +158,33 @@ def connect(to_link1, to_link2, search_range, merge = True):
         return output1.merge(output2, how = "outer", on = "connect particle")
 
 
-def LoG(video_or_path, min_r, max_r, **kwargs):
-    if isinstance(video_or_path, np.ndarray):
-        video = video_or_path
-        if video.ndim == 2:
-            video = video[None, ...]
-        arr, columns = log_rust(
-            video,
-            min_r,
-            max_r,
-            **kwargs
-        )
-    else:
-        path = str(video_or_path)
-        arr, columns = log_file_rust(
-            path,
-            min_r,
-            max_r,
-            **kwargs
-        )
+def mean_from_file(path, channel = None):
+    """
+    Takes the average across frames of the provided video returns a numpy array with the result.
+    
+    Args:
+        path: The file path to the video to mean
+        channel: In the case of .vsi / .ets files, the channel to mean.
+    
+    Returns:
+        video: The numpy array containing the average of all frames in the video.
+    """
+    return mean_from_file_rust(path, channel)
 
-    columns = {name: typ for name, typ in columns}
-    return pd.DataFrame(arr, columns = columns).astype(columns)
-
+def load(path, frames = None, channel = None):
+    """
+    Loads a tiff or .vsi / .ets a the provided path and returns it as a 3-dimensional numpy array.
+    
+    Args:
+        path: The file path to the video to mean
+        frames: A sequence that specifies what frames from the video to load. For example, to only load the first 50 frames of a video, frames = range(50) can be supplied.
+        channel: In the case of .vsi / .ets files, the channel to mean.
+    
+    Returns:
+        video: The numpy array containing the average of all frames in the video.
+    """
+    return load_rust(path, frames, channel) 
+    
 
 def annotate_image(image, tracked_df, figax = None, r = None, frame = None, imshow_kw = {}, circle_kw = {}, subplot_kw = {}):
     import matplotlib.pyplot as plt

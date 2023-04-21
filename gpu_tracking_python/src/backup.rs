@@ -594,8 +594,8 @@ fn gpu_tracking(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "mean_from_disk")]
-    fn mean_from_disk<'py>(py: Python<'py>, path: &str, channel: Option<usize>) -> PyResult<&'py PyArray2<f32>>{
+    #[pyo3(name = "mean_from_file")]
+    fn mean_from_file<'py>(py: Python<'py>, path: &str, channel: Option<usize>) -> PyResult<&'py PyArray2<f32>>{
         let path = PathBuf::from(path);
         let (provider, dims) = path_to_iter(&path, channel).map_err(|err| err.pyerr())?;
         let iter = provider.into_iter();

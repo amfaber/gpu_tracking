@@ -88,6 +88,9 @@ accepted dimensions: (Nx2) or (Nx3). received: {:?}",
 
     #[error("Tiff write error")]
     TiffWrite,
+
+    #[error("Ill-formed builder")]
+    WrongBuilder,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

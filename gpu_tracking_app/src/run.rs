@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use eframe;
 use tracing_subscriber;
@@ -11,6 +13,9 @@ struct Args {
 
     #[arg(short, long)]
     test: Option<bool>,
+
+    #[arg(short, long)]
+    help: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -23,6 +28,9 @@ struct IgnoreFirstArgs {
 
     #[arg(short, long)]
     test: Option<bool>,
+    
+    #[arg(short, long)]
+    help: bool,
 }
 
 impl Into<Args> for IgnoreFirstArgs{
@@ -31,30 +39,40 @@ impl Into<Args> for IgnoreFirstArgs{
 			paths,
 			verbosity,
 			test,
-			..
+			help,
+            exename: _exename,
 		} = self;
 		Args{
 			paths,
 			verbosity,
 			test,
+            help,
 		}
     }
 }
 
-pub fn run_ignore(){
-	run(IgnoreFirstArgs::parse().into())
+pub fn run_python(doc_dir: PathBuf){
+	run(IgnoreFirstArgs::parse().into(), Some(doc_dir))
 }
 
 pub fn run_all(){
-	run(Args::parse())
+	run(Args::parse(), None)
 }
 
-fn run(args: Args) {
+fn run(args: Args, doc_dir: Option<PathBuf>) {
     let Args {
         paths,
         verbosity,
         test,
+        help,
     } = args;
+
+    if help{
+        // dbg!(std::env::current_dir());
+        dbg!(std::env::current_exe());
+        return
+    }
+    
     let verbosity = verbosity.unwrap_or(0);
     let test = test.unwrap_or(false);
     
@@ -77,7 +95,7 @@ fn run(args: Args) {
         options,
         Box::new(move |cc| {
             if !test {
-                Box::new(crate::app::AppWrapper::new(cc, paths).unwrap())
+                Box::new(crate::app::AppWrapper::new(cc, paths, doc_dir).unwrap())
             } else {
                 Box::new(crate::app::AppWrapper::test(cc).unwrap())
             }

@@ -8,6 +8,7 @@ dependencies = ["numpy", "pandas", "tqdm"]
 
 [tool.maturin]
 python-source = "python"
+# include = [{path = "python/docs", format = "sdist"}]
 
 [project.scripts]
 gpu_tracking = "gpu_tracking:run_app"

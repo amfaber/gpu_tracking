@@ -50,4 +50,5 @@ wgpu = "0.15.1"
 pollster = "0.3.0"
 ffmpeg_export = { path = "../ffmpeg_export", optional = true }
 com = "0.6.0"
+webbrowser = "0.8.9"
 
