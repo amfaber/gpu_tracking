@@ -37,7 +37,7 @@ use std::{
     time::Instant,
 };
 use tiff::decoder::Decoder;
-use tracing::*;
+// use tracing::*;
 use wgpu::{Buffer, SubmissionIndex};
 
 // type channel_type = Option<(Vec<ResultRow>, usize, Option<Vec<my_dtype>>, Option<f32>)>;

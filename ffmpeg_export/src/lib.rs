@@ -587,7 +587,7 @@ impl VideoEncoder{
         }
     }
     pub fn encode_frame(&mut self, data: &[u8]) -> Result<()>{
-        if data.len() != (self.width * self.height) as usize{
+        if data.len() != (self.width * self.height * 4) as usize{
             return Err(InvalidDataLen)
         }
         unsafe{

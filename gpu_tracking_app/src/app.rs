@@ -12,7 +12,7 @@ use anyhow;
 use bytemuck;
 use csv;
 use eframe::egui_wgpu;
-use egui::{self, TextStyle};
+use egui::{self, TextStyle, DroppedFile};
 use epaint;
 use gpu_tracking::gpu_setup::new_device_queue;
 use gpu_tracking::{
@@ -29,6 +29,7 @@ use rfd;
 use std::fmt::Write;
 use strum::IntoEnumIterator;
 use thiserror::Error;
+#[cfg(not(feature = "ffmpeg"))]
 use tiff::encoder::*;
 use tracing::*;
 use uuid::Uuid;
@@ -103,6 +104,8 @@ pub struct AppWrapper {
     test_function: Option<Box<dyn FnOnce(&mut Self, &mut egui::Ui, &mut eframe::Frame) -> ()>>,
     adapter: Arc<wgpu::Adapter>,
     doc_dir: Option<PathBuf>,
+    pending_coupling: Option<(Uuid, CouplingType)>,
+    dropped_file: Option<PathBuf>,
 }
 
 fn new_adapter() -> Arc<wgpu::Adapter> {
@@ -184,6 +187,8 @@ impl AppWrapper {
             test_function: None,
             adapter,
             doc_dir,
+            pending_coupling: None,
+            dropped_file: None,
         })
     }
 
@@ -222,12 +227,27 @@ impl AppWrapper {
             test_function: function,
             adapter,
             doc_dir: None,
+            pending_coupling: None,
+            dropped_file: None,
         })
+    }
+}
+
+impl AppWrapper{
+    fn new_window(&mut self){
+        self.apps.push(Rc::new(RefCell::new(
+            WindowApp::new(new_device_queue(&self.adapter)).unwrap(),
+        )));
+        self.opens.push(true);
     }
 }
 
 impl eframe::App for AppWrapper {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        ctx.input(|inp| {
+            if inp.raw.dropped_files.is_empty() {return}
+            self.dropped_file = inp.raw.dropped_files[0].path.clone();
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
@@ -235,12 +255,8 @@ impl eframe::App for AppWrapper {
                     if let Some(func) = self.test_function.take() {
                         func(self, ui, frame)
                     }
-                    let response = ui.button("New");
-                    if response.clicked() {
-                        self.apps.push(Rc::new(RefCell::new(
-                            WindowApp::new(new_device_queue(&self.adapter)).unwrap(),
-                        )));
-                        self.opens.push(true);
+                    if ui.button("New").clicked() {
+                        self.new_window()
                     }
                     if let Some(doc_dir) = self.doc_dir.as_ref().and_then(|inner| inner.as_os_str().to_str()){
                         if ui.button("Help").clicked(){
@@ -249,11 +265,12 @@ impl eframe::App for AppWrapper {
                     }
                     let mut adds = Vec::new();
                     let mut removes = Vec::new();
+                    let mut new_couplings = Vec::new();
                     for (i, (app, open)) in
                         self.apps.iter_mut().zip(self.opens.iter_mut()).enumerate()
                     {
                         let mut app = app.borrow_mut();
-                        egui::containers::Window::new("")
+                        let window_response = egui::containers::Window::new("")
                             .id(egui::Id::new(app.uuid.as_u128()))
                             .title_bar(true)
                             .open(open)
@@ -291,7 +308,39 @@ impl eframe::App for AppWrapper {
                                     );
                                 });
                             });
+                        if let Some(response) = window_response{
+                            ctx.input(|inp|{
+                                let Some(press_loc) = inp.pointer.press_origin() else {return};
+                                let Some(pending) = &self.pending_coupling else {return};
+                                if !(response.response.rect.contains(press_loc) && (pending.0 != app.uuid)) {return}
+
+                                new_couplings.push((pending.0, app.uuid, pending.1));
+                                self.pending_coupling = None;
+                            });
+                            
+                            response.response.context_menu(|ui|{
+                                let pending_coupling = match &mut self.pending_coupling{
+                                    Some(val) => val,
+                                    None => {
+                                        self.pending_coupling = Some((app.uuid, CouplingType::Controlling));
+                                        self.pending_coupling.as_mut().unwrap()
+                                    }
+                                };
+                                ui.label("Create coupling");
+                                    ui.selectable_value(&mut pending_coupling.1, CouplingType::Controlling, "Controlling coupling").clicked();
+                                    ui.selectable_value(&mut pending_coupling.1, CouplingType::_NonControlling, "Non-controlling coupling").clicked();
+                            });
+                        }
                     }
+
+                    if let Some(path) = self.dropped_file.take(){
+                        self.new_window();
+                        let mut app = self.apps.last_mut().unwrap().borrow_mut();
+                        app.input_state.path = path.as_os_str().to_str().unwrap().to_string();
+                        let wgpu_render_state = frame.wgpu_render_state().unwrap();
+                        let _ = app.setup_new_path(wgpu_render_state);
+                    }
+                    
                     for (i, open) in self.opens.iter().enumerate() {
                         if !*open {
                             removes.push(i);
@@ -320,6 +369,50 @@ impl eframe::App for AppWrapper {
                     for i in removes {
                         self.apps.remove(i);
                         self.opens.remove(i);
+                    }
+                    
+                    for (from, to, ty) in new_couplings{
+                        let from = self.apps
+                            .iter()
+                            .find(|app| app.borrow().uuid == from)
+                            .unwrap();
+                        let to = self.apps
+                            .iter()
+                            .find(|app| app.borrow().uuid == to)
+                            .unwrap();
+                        let ref_from = from.borrow();
+                        let ref_to = to.borrow();
+
+                        let from_already_contains_to = ref_from.other_apps
+                            .iter()
+                            .find(|app| {
+                                if let Some(other_app) = app.link.upgrade(){
+                                    other_app.borrow().uuid == ref_from.uuid
+                                } else {
+                                    false
+                                }
+                            }).is_some();
+
+                        let to_already_contains_from = ref_to.other_apps
+                            .iter()
+                            .find(|app| {
+                                if let Some(other_app) = app.link.upgrade(){
+                                    other_app.borrow().uuid == ref_to.uuid
+                                } else {
+                                    false
+                                }
+                            }).is_some();
+                        if to_already_contains_from || from_already_contains_to{
+                            continue
+                        }
+                        drop(ref_to);
+                        drop(ref_from);
+                        let mut from = from.borrow_mut();
+                        let to = Rc::downgrade(to);
+                        from.other_apps.push(Coupling{
+                            link: to,
+                            ty,
+                        });
                     }
                 })
         });
@@ -351,12 +444,13 @@ struct RecalculateJob {
     channel: Option<usize>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 enum CouplingType {
     Controlling,
     _NonControlling,
 }
 
+#[derive(Debug)]
 struct Coupling {
     link: Weak<RefCell<WindowApp>>,
     ty: CouplingType,
@@ -422,6 +516,8 @@ pub struct WindowApp {
 
     playback: Playback,
     frame_step: i32,
+
+    // pending_coupling: Option<CouplingType>,
 }
 
 #[derive(Clone)]
@@ -431,6 +527,7 @@ enum Playback {
         rect: Option<egui::Rect>,
         data: Vec<egui::ColorImage>,
         path: PathBuf,
+        fps: i32,
     },
     Off,
 }
@@ -558,6 +655,8 @@ impl WindowApp {
 
             playback,
             frame_step: self.frame_step.clone(),
+
+            // pending_coupling: None,
         };
         out
     }
@@ -1117,6 +1216,8 @@ impl WindowApp {
 
             playback,
             frame_step: 1,
+
+            // pending_coupling: None,
         };
         Some(out)
     }
@@ -1269,7 +1370,11 @@ impl WindowApp {
         for owner in self.other_apps.iter() {
             if let Some(alive_owner) = owner.link.upgrade() {
                 if let Ok(borrowed_owner) = alive_owner.try_borrow() {
-                    let idx = borrowed_owner.frame_idx;
+                    // let idx = borrowed_owner.frame_idx;
+                    let idx = match owner.ty{
+                        CouplingType::Controlling => borrowed_owner.frame_idx,
+                        CouplingType::_NonControlling => self.frame_idx,
+                    };
                     if let Some(circles) = borrowed_owner.results_to_circles_to_plot(idx) {
                         self.circles_to_plot.push((circles, Some(owner.clone())));
                     }
@@ -1801,6 +1906,7 @@ impl WindowApp {
                             rect: None,
                             data: Vec::new(),
                             path,
+                            fps: self.input_state.fps.parse().unwrap_or(10),
                         };
                     }
                     // frame.request_screenshot()
@@ -2219,7 +2325,6 @@ impl WindowApp {
     }
 
     fn recalculate(&mut self) -> anyhow::Result<()> {
-        // dbg!("entering recalc");
         match &self.mode {
             DataMode::Off => {
                 self.result_status = ResultStatus::Processing;
@@ -2694,9 +2799,9 @@ impl WindowApp {
                 Err(FrameChangeError::AtBounds) => match &mut self.playback {
                     Playback::Off => (),
                     Playback::FPS(_) => self.playback = Playback::Off,
-                    Playback::Recording { rect, data, path } => {
+                    Playback::Recording { rect: _rect, data, path, fps } => {
                         // let size = rect.unwrap().size();
-                        export_video(data[0].size, data, path);
+                        export_video(data[0].size, data, path, *fps);
                         
                         // let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
                         // if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
@@ -2910,7 +3015,7 @@ fn colormap_dropdown(ui: &mut egui::Ui, input: &mut colormaps::KnownMaps) -> boo
 }
 
 
-fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
+fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf, fps: i32){
     #[cfg(not(feature = "ffmpeg"))]
     {
         let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
@@ -2945,7 +3050,7 @@ fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
             size[1] as i32,
             ffmpeg_export::PixelFormat::RGBA,
             path,
-            25,
+            fps,
             None,
         ).unwrap();
 

@@ -14,8 +14,6 @@ struct Args {
     #[arg(short, long)]
     test: Option<bool>,
 
-    #[arg(short, long)]
-    help: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -28,9 +26,6 @@ struct IgnoreFirstArgs {
 
     #[arg(short, long)]
     test: Option<bool>,
-    
-    #[arg(short, long)]
-    help: bool,
 }
 
 impl Into<Args> for IgnoreFirstArgs{
@@ -39,14 +34,12 @@ impl Into<Args> for IgnoreFirstArgs{
 			paths,
 			verbosity,
 			test,
-			help,
             exename: _exename,
 		} = self;
 		Args{
 			paths,
 			verbosity,
 			test,
-            help,
 		}
     }
 }
@@ -64,15 +57,8 @@ fn run(args: Args, doc_dir: Option<PathBuf>) {
         paths,
         verbosity,
         test,
-        help,
     } = args;
 
-    if help{
-        // dbg!(std::env::current_dir());
-        dbg!(std::env::current_exe());
-        return
-    }
-    
     let verbosity = verbosity.unwrap_or(0);
     let test = test.unwrap_or(false);
     
