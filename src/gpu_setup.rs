@@ -1291,7 +1291,7 @@ pub fn setup_state<'a>(
     Ok(state)
 }
 
-fn make_pipelines_from_source<F: Fn(&str, &[u32; 3], &str) -> String>(
+pub fn make_pipelines_from_source<F: Fn(&str, &[u32; 3], &str) -> String>(
     shaders: HashMap<&str, (&str, Option<Rc<Dispatcher>>, [u32; 3])>,
     preprocessor: F,
     common_header: &str,
@@ -1304,7 +1304,7 @@ fn make_pipelines_from_source<F: Fn(&str, &[u32; 3], &str) -> String>(
         Option<Rc<Dispatcher>>,
     ),
 > {
-    let output = shaders
+    shaders
         .into_iter()
         .map(|(name, (source, dispatcher, group_size))| {
             let shader_source = preprocessor(source, &group_size, common_header);
@@ -1334,7 +1334,58 @@ fn make_pipelines_from_source<F: Fn(&str, &[u32; 3], &str) -> String>(
                 (Rc::new(pipeline), bindgrouplayout, dispatcher),
             )
         })
+        .collect::<HashMap<_, _>>()
+}
+
+pub fn make_full_computepasses(
+    device: &Device,
+    passes: HashMap<String, (Rc<ComputePipeline>, BindGroupLayout, Option<Rc<Dispatcher>>)>,
+    bind_group_entries: HashMap<&str, Vec<Vec<Option<(i32, &wgpu::Buffer)>>>>,
+) -> HashMap<String, Vec<FullComputePass>>{
+    let bind_group_entries = bind_group_entries
+        .iter()
+        .map(|(&name, bind_entries_vector)| {
+            let bind_entries_vector = bind_entries_vector
+                .iter()
+                .map(|bind_entries| {
+                    bind_entries
+                        .iter()
+                        .flatten()
+                        .map(|(i, buffer)| wgpu::BindGroupEntry {
+                            binding: *i as u32,
+                            resource: buffer.as_entire_binding(),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            (name, bind_entries_vector)
+        })
         .collect::<HashMap<_, _>>();
 
-    output
+    
+    passes
+        .into_iter()
+        .map(|(name, (pipeline, layout, dispatcher))| {
+            let entries = &bind_group_entries[name.as_str()];
+            let passes_for_name = entries
+                .iter()
+                .map(|entry| {
+                    let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: None,
+                        layout: &layout,
+                        entries: &entry[..],
+                    });
+                    let pass = FullComputePass {
+                        pipeline: Rc::clone(&pipeline),
+                        bindgroup,
+                        dispatcher: dispatcher.as_ref().map(|d| Rc::clone(d)),
+                    };
+                    pass
+                })
+                .collect::<Vec<_>>();
+
+            (name, passes_for_name)
+        })
+        .collect::<HashMap<_, _>>()
+
 }
