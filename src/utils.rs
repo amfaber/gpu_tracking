@@ -7,11 +7,6 @@ pub unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
     ::std::slice::from_raw_parts((p as *const T) as *const u8, ::std::mem::size_of::<T>())
 }
 
-pub struct SeparableConvolution<const N: usize> {
-    input_pass: FullComputePass,
-    passes: [FullComputePass; 2],
-}
-
 pub enum Dispatcher {
     Direct([u32; 3]),
     Indirect {
@@ -114,6 +109,11 @@ impl FullComputePass {
             None => {}
         }
     }
+}
+
+pub struct SeparableConvolution<const N: usize> {
+    input_pass: FullComputePass,
+    passes: [FullComputePass; 2],
 }
 
 impl<const N: usize> SeparableConvolution<N> {

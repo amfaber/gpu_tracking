@@ -1319,7 +1319,7 @@ pub fn make_pipelines_from_source<F: Fn(&str, &[u32; 3], &str) -> String>(
                 bind_group_layouts: &[&bindgrouplayout],
                 push_constant_ranges: &[wgpu::PushConstantRange {
                     stages: wgpu::ShaderStages::COMPUTE,
-                    range: 0..16,
+                    range: 0..64,
                 }],
             });
 
