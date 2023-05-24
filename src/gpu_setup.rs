@@ -603,7 +603,7 @@ pub fn new_adapter() -> wgpu::Adapter {
 pub fn new_device_queue(adapter: &wgpu::Adapter) -> (wgpu::Device, wgpu::Queue) {
     let mut desc = wgpu::DeviceDescriptor::default();
     desc.features = wgpu::Features::MAPPABLE_PRIMARY_BUFFERS | wgpu::Features::PUSH_CONSTANTS;
-    desc.limits.max_push_constant_size = 16;
+    desc.limits.max_push_constant_size = 64;
     desc.limits.max_storage_buffers_per_shader_stage = 12;
     adapter.request_device(&desc, None).block_on().unwrap()
 }

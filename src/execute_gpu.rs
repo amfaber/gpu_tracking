@@ -116,7 +116,6 @@ fn submit_work<'a, F: IntoSlice>(
         bytemuck::cast_slice(&[state.pic_size as u32]),
     );
 
-    // thread_handle = thread_handle_error(sender.send(frame), thread_handle)?;
     if let Some(sender) = frame_sender {
         thread_handle = handle_thread_error(sender.send(frame), thread_handle)?;
     }
@@ -232,7 +231,7 @@ fn submit_work<'a, F: IntoSlice>(
             for cpassname in order.iter() {
                 let fullpass = &state.passes[cpassname][0];
                 fullpass.execute(&mut encoder, &[]);
-                fullpass.reset_indirect(&mut encoder)
+                fullpass.reset_indirect(&mut encoder);
             }
         }
         GpuStateFlavor::Log {

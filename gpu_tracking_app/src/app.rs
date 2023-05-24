@@ -12,7 +12,7 @@ use anyhow;
 use bytemuck;
 use csv;
 use eframe::egui_wgpu;
-use egui::{self, TextStyle, DroppedFile};
+use egui::{self, TextStyle};
 use epaint;
 use gpu_tracking::gpu_setup::new_device_queue;
 use gpu_tracking::{
