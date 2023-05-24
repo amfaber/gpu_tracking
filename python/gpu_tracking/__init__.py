@@ -1,7 +1,6 @@
 from .gpu_tracking import *
 from .lib import *
 
-# print(__all__)
 __all__ = ["batch", "characterize_points", "link", "connect", "LoG", "load", "mean_from_file"]
 
 import sys
