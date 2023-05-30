@@ -541,6 +541,7 @@ impl LinkingWarning {
             self.insert(warning_type);
         }
     }
+
     pub fn handle_warning(&mut self, warning: LinkingWarning, warn_subnet_fraction: f32) {
         let warn_subnet_fraction = warn_subnet_fraction;
         self.check(
@@ -570,7 +571,7 @@ pub fn link<T: KdPoint<Scalar = float, Dim = U2> + std::fmt::Debug>(
     radius: float,
     counter: &mut usize,
     warn_subnet_fraction: f32,
-    prev_warnings: &mut LinkingWarning,
+    _prev_warnings: &mut LinkingWarning,
     interrupt: Option<&Arc<AtomicBool>>,
 ) -> Result<(Vec<usize>, Vec<([float; 2], usize)>)> {
     let tree = kd_tree::KdIndexTree::build_by_ordered_float(dest);
@@ -680,7 +681,7 @@ pub fn link<T: KdPoint<Scalar = float, Dim = U2> + std::fmt::Debug>(
         warn |= LinkingWarning::COMPUTATION_TOO_HEAVY;
     }
 
-    prev_warnings.handle_warning(warn, warn_subnet_fraction);
+    // prev_warnings.handle_warning(warn, warn_subnet_fraction);
 
     #[inline]
     fn recurse2(

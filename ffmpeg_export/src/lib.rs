@@ -125,7 +125,7 @@ unsafe fn alloc_picture(pix_fmt: AVPixelFormat, width: i32, height: i32) -> Resu
     Ok(picture)
 }
 
-unsafe fn fill_yuv_image(pict: *mut AVFrame, frame_index: i64, width: i32, height: i32) {
+unsafe fn _fill_yuv_image(pict: *mut AVFrame, frame_index: i64, width: i32, height: i32) {
     let i = frame_index as i32;
     for y in 0..height {
         for x in 0..width {

@@ -1,13 +1,17 @@
 [package]
 name = "gpu_tracking_python"
-version = "1.1.3"
+version = "1.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["ffmpeg"]
+ffmpeg = ["gpu_tracking_app/ffmpeg"]
+
 [dependencies]
 gpu_tracking = { path = ".."}
-gpu_tracking_app = { path = "../gpu_tracking_app" }
+gpu_tracking_app = { path = "../gpu_tracking_app", default-features = false }
 ndarray = "0.15.6"
 # eframe = { version = "0.20.0", default-features = false, features = ["wgpu"] }
 eframe = { git = "https://github.com/amfaber/egui", default-features = false, features = ["wgpu"] }

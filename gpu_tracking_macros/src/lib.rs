@@ -684,104 +684,104 @@ fn char_args() -> (Vec<Argument>, TokenStream2) {
 
 
 
-fn parse_tp() -> TokenStream2 {
-    let common = parse_common();
-    quote!(
-        let maxsize = maxsize.unwrap_or(f32::INFINITY);
-        let separation = separation.unwrap_or(diameter + 1);
-        let threshold = threshold.unwrap_or(1./255.);
-        let invert = invert.unwrap_or(false);
-        let percentile = percentile.unwrap_or(64.);
-        let topn = topn.unwrap_or(u32::MAX);
-        let preprocess = preprocess.unwrap_or(true);
-        let filter_close = filter_close.unwrap_or(true);
-        let style = ParamStyle::Trackpy{
-            diameter,
-            maxsize,
-            separation,
-            threshold,
-            invert,
-            percentile,
-            topn,
-            preprocess,
-            filter_close,
-        };
-        let include_r_in_output = false;
-        #common
+// fn parse_tp() -> TokenStream2 {
+//     let common = parse_common();
+//     quote!(
+//         let maxsize = maxsize.unwrap_or(f32::INFINITY);
+//         let separation = separation.unwrap_or(diameter + 1);
+//         let threshold = threshold.unwrap_or(1./255.);
+//         let invert = invert.unwrap_or(false);
+//         let percentile = percentile.unwrap_or(64.);
+//         let topn = topn.unwrap_or(u32::MAX);
+//         let preprocess = preprocess.unwrap_or(true);
+//         let filter_close = filter_close.unwrap_or(true);
+//         let style = ParamStyle::Trackpy{
+//             diameter,
+//             maxsize,
+//             separation,
+//             threshold,
+//             invert,
+//             percentile,
+//             topn,
+//             preprocess,
+//             filter_close,
+//         };
+//         let include_r_in_output = false;
+//         #common
 
-    )
-}
+//     )
+// }
 
-fn parse_log() -> TokenStream2 {
-    let common = parse_common();
-    quote!(
-        let n_radii = n_radii.unwrap_or(10);
-        let log_spacing = log_spacing.unwrap_or(false);
-        let overlap_threshold = overlap_threshold.unwrap_or(0.);
-        let style = ParamStyle::Log{
-            min_radius,
-            max_radius,
-            n_radii,
-            log_spacing,
-            overlap_threshold,
-        };
-        let include_r_in_output = true;
-        #common
-    )
-}
+// fn parse_log() -> TokenStream2 {
+//     let common = parse_common();
+//     quote!(
+//         let n_radii = n_radii.unwrap_or(10);
+//         let log_spacing = log_spacing.unwrap_or(false);
+//         let overlap_threshold = overlap_threshold.unwrap_or(0.);
+//         let style = ParamStyle::Log{
+//             min_radius,
+//             max_radius,
+//             n_radii,
+//             log_spacing,
+//             overlap_threshold,
+//         };
+//         let include_r_in_output = true;
+//         #common
+//     )
+// }
 
-fn parse_common() -> TokenStream2 {
-    quote!(
-        let minmass = minmass.unwrap_or(0.);
-        let max_iterations = max_iterations.unwrap_or(10);
-        let characterize = characterize.unwrap_or(false);
-        let gap_radius = bg_radius.map(|_| gap_radius.unwrap_or(0.));
-        let truncate_preprocessed = truncate_preprocessed.unwrap_or(true);
-        let shift_threshold = shift_threshold.unwrap_or(0.6);
-        let noise_size = noise_size.unwrap_or(1.0);
+// fn parse_common() -> TokenStream2 {
+//     quote!(
+//         let minmass = minmass.unwrap_or(0.);
+//         let max_iterations = max_iterations.unwrap_or(10);
+//         let characterize = characterize.unwrap_or(false);
+//         let gap_radius = bg_radius.map(|_| gap_radius.unwrap_or(0.));
+//         let truncate_preprocessed = truncate_preprocessed.unwrap_or(true);
+//         let shift_threshold = shift_threshold.unwrap_or(0.6);
+//         let noise_size = noise_size.unwrap_or(1.0);
 
-        let doughnut_correction = doughnut_correction.unwrap_or(false);
-        let illumination_correction_per_frame = illumination_correction_per_frame.unwrap_or(false);
+//         let doughnut_correction = doughnut_correction.unwrap_or(false);
+//         let illumination_correction_per_frame = illumination_correction_per_frame.unwrap_or(false);
 
-        let illumination_sigma = match illumination_sigma{
-            Some(val) => Some(val),
-            None => {
-                if correct_illumination.unwrap_or(false){
-                    Some(30.)
-                } else {
-                    None
-                }
-            }
-        };
-        let tqdm = tqdm.unwrap_or(true);
+//         let illumination_sigma = match illumination_sigma{
+//             Some(val) => Some(val),
+//             None => {
+//                 if correct_illumination.unwrap_or(false){
+//                     Some(30.)
+//                 } else {
+//                     None
+//                 }
+//             }
+//         };
+//         let tqdm = tqdm.unwrap_or(true);
 
-        let mut characterize_points = None::<(ArrayView2<my_dtype>, bool, bool)>;
+//         let mut characterize_points = None::<(ArrayView2<my_dtype>, bool, bool)>;
 
-        let mut params = TrackingParams{
-            style,
-            minmass,
-            max_iterations,
-            characterize,
-            search_range,
-            memory,
-            doughnut_correction,
-            bg_radius,
-            gap_radius,
-            snr,
-            minmass_snr,
-            truncate_preprocessed,
-            illumination_sigma,
-            adaptive_background,
-            include_r_in_output,
-            shift_threshold,
-            linker_reset_points,
-            keys: frames,
-            noise_size,
-            smoothing_size,
-            illumination_correction_per_frame,
-        };
-    )
-}
+//         let mut params = TrackingParams{
+//             style,
+//             minmass,
+//             max_iterations,
+//             characterize,
+//             search_range,
+//             memory,
+//             doughnut_correction,
+//             bg_radius,
+//             gap_radius,
+//             snr,
+//             minmass_snr,
+//             truncate_preprocessed,
+//             illumination_sigma,
+//             adaptive_background,
+//             include_r_in_output,
+//             shift_threshold,
+//             linker_reset_points,
+//             keys: frames,
+//             noise_size,
+//             smoothing_size,
+//             illumination_correction_per_frame,
+//         };
+//     )
+// }
 
 // fn file_args() -> TokenStream2 {
 //     quote!(py: Python<'py>, filename: String,)

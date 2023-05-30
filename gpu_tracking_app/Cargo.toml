@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["ffmpeg"]
-ffmpeg = ["ffmpeg_export"]
+ffmpeg = ["dep:ffmpeg_export"]
 
 [dependencies]
 # chrono = { version = "0.4", features = ["js-sys", "wasmbind"] }

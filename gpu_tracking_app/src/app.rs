@@ -29,7 +29,7 @@ use rfd;
 use std::fmt::Write;
 use strum::IntoEnumIterator;
 use thiserror::Error;
-#[cfg(not(feature = "ffmpeg"))]
+// #[cfg(not(feature = "ffmpeg"))]
 use tiff::encoder::*;
 use tracing::*;
 use uuid::Uuid;
@@ -2800,33 +2800,8 @@ impl WindowApp {
                     Playback::Off => (),
                     Playback::FPS(_) => self.playback = Playback::Off,
                     Playback::Recording { rect: _rect, data, path, fps } => {
-                        // let size = rect.unwrap().size();
-                        export_video(data[0].size, data, path, *fps);
-                        
-                        // let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-                        // if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
-                        //     let mut encoder = TiffEncoder::new(writer).unwrap();
-                        //     for image in data {
-                        //         let image_encoder = encoder
-                        //             .new_image::<colortype::RGBA8>(
-                        //                 image.size[0] as u32,
-                        //                 image.size[1] as u32,
-                        //             )
-                        //             .unwrap();
-                        //         image_encoder.write_data(image.as_raw()).unwrap();
-                        //     }
-                        // } else {
-                        //     let mut encoder = TiffEncoder::new_big(writer).unwrap();
-                        //     for image in data {
-                        //         let image_encoder = encoder
-                        //             .new_image::<colortype::RGBA8>(
-                        //                 image.size[0] as u32,
-                        //                 image.size[1] as u32,
-                        //             )
-                        //             .unwrap();
-                        //         image_encoder.write_data(image.as_raw()).unwrap();
-                        //     }
-                        // }
+                        let format = ExportFormat::from_path(path).unwrap_or(ExportFormat::Tif);
+                        export_video(data[0].size, data, path, *fps, format).expect("I really should write an error for this");
                         self.playback = Playback::Off;
                     }
                 },
@@ -3015,33 +2990,55 @@ fn colormap_dropdown(ui: &mut egui::Ui, input: &mut colormaps::KnownMaps) -> boo
 }
 
 
-fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf, fps: i32){
+enum ExportFormat{
+    Tif,
+    Mp4,
+}
+
+impl ExportFormat{
+    fn from_path<P: AsRef<std::path::Path>>(path: &P) -> Option<Self>{
+        let path = path.as_ref();
+        let ext = path.extension().and_then(|os_str| os_str.to_str())?;
+        match ext{
+            "mp4" => Some(Self::Mp4),
+            "tif" => Some(Self::Tif),
+            _ => None
+        }
+    }
+}
+
+
+fn export_video_tif(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf){
+    let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+    if size[0] as usize * size[1] as usize * 4 * data.len() < 1 << 31 {
+        let mut encoder = TiffEncoder::new(writer).unwrap();
+        for image in data {
+            let image_encoder = encoder
+                .new_image::<colortype::RGBA8>(
+                    image.size[0] as u32,
+                    image.size[1] as u32,
+                )
+                .unwrap();
+            image_encoder.write_data(image.as_raw()).unwrap();
+        }
+    } else {
+        let mut encoder = TiffEncoder::new_big(writer).unwrap();
+        for image in data {
+            let image_encoder = encoder
+                .new_image::<colortype::RGBA8>(
+                    image.size[0] as u32,
+                    image.size[1] as u32,
+                )
+                .unwrap();
+            image_encoder.write_data(image.as_raw()).unwrap();
+        }
+    }
+}
+
+fn export_video_mp4(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf, fps: i32) -> Result<(), anyhow::Error>{
     #[cfg(not(feature = "ffmpeg"))]
     {
-        let writer = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-        if size.x as usize * size.y as usize * 4 * data.len() < 1 << 31 {
-            let mut encoder = TiffEncoder::new(writer).unwrap();
-            for image in data {
-                let image_encoder = encoder
-                    .new_image::<colortype::RGBA8>(
-                        image.size[0] as u32,
-                        image.size[1] as u32,
-                    )
-                    .unwrap();
-                image_encoder.write_data(image.as_raw()).unwrap();
-            }
-        } else {
-            let mut encoder = TiffEncoder::new_big(writer).unwrap();
-            for image in data {
-                let image_encoder = encoder
-                    .new_image::<colortype::RGBA8>(
-                        image.size[0] as u32,
-                        image.size[1] as u32,
-                    )
-                    .unwrap();
-                image_encoder.write_data(image.as_raw()).unwrap();
-            }
-        }
+        Err(anyhow::Error::msg("Tried to save as mp4 without being compiled with FFMPEG"))
     }
     #[cfg(feature = "ffmpeg")]
     {
@@ -3057,5 +3054,19 @@ fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf, fps
         for img in data{
             encoder.encode_frame(img.as_raw()).unwrap();
         }
+
+        Ok(())
     }
+}
+
+fn export_video(size: [usize; 2], data: &[egui::ColorImage], path: &PathBuf, fps: i32, format: ExportFormat) -> Result<(), anyhow::Error>{
+    match format{
+        ExportFormat::Tif => {
+            export_video_tif(size, data, path);
+        },
+        ExportFormat::Mp4 => {
+            export_video_mp4(size, data, path, fps)?;
+        },
+    }
+    Ok(())
 }
