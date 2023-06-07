@@ -1,5 +1,5 @@
 [workspace]
-members = ["gpu_tracking_app", "gpu_tracking_python", "gpu_tracking_macros", "gauss_fitting", "ffmpeg_export"]
+members = ["gpu_tracking_app", "gpu_tracking_python", "gpu_tracking_macros", "gauss_fitting", "ffmpeg_export", "gpufit_port", "gpwgpu"]
 
 [package]
 edition = "2021"
@@ -9,7 +9,7 @@ version = "0.6.0"
 name = "tracking"
 path = "src/main.rs"
 
-[dependencies]
+[workspace.dependencies]
 anyhow = "1.0.65"
 bencher = "0.1.5"
 bytemuck = { version = "1.12.1", features = ["derive"] }
@@ -36,26 +36,40 @@ indicatif = "0.17.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
 
-# [dependencies.wgpu-fft]
-# version = "*"
-# path = "wgpu-fft"
+
+[dependencies]
+anyhow = { workspace = true }
+bencher = { workspace = true }
+futures = { workspace = true }
+futures-intrusive = { workspace = true }
+image = { workspace = true }
+kd-tree = { workspace = true }
+ndarray = { workspace = true }
+ndarray-csv = { workspace = true }
+noisy_float = { workspace = true }
+num-traits = { workspace = true }
+ordered-float = { workspace = true }
+pollster = { workspace = true }
+rayon = { workspace = true }
+tiff = { workspace = true }
+typenum = { workspace = true }
+wgpu = { workspace = true }
+byteorder = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+bitflags = { workspace = true }
+ctrlc = { workspace = true }
+indicatif = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
+
+# gpwgpu = { path = "gpwgpu" }
 
 [dependencies.clap]
 features = ["derive"]
 version = "4.0.6"
 
-# [dependencies.numpy]
-# optional = false
-# version = "0.17.2"
-
-# [dependencies.pyo3]
-# features = ["extension-module", "abi3-py37"]
-# optional = false
-# version = "0.17.3"
-
-[lib]
-# crate-type = ["cdylib", "rlib"]
-name = "gpu_tracking"
 
 [profile.release-with-debug]
 inherits = "release"
